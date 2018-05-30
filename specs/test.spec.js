@@ -2,18 +2,18 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const chai = require('chai');
 const expect = chai.expect;
-const api = require('../app/api');
-var supertest = require("supertest")(api.app);
+const app = require('../app/index');
+const supertest = require("supertest")(app);
 
 const Name = mongoose.model('Name', new Schema({
 	name: { type: String, required: true, unique: true }
 }));
 
 describe('Database Tests', () => {
-	before((done) => {
-		api.db().then(done);
+	before(async () => {
+		await mongoose.connect(process.env.MONGODB_URI);
 	});
-	
+
 	describe('Test Database', () => {
 		it('should be invalid if name is empty', (done) => {
 			var model = new Name();
@@ -65,7 +65,7 @@ describe('Database Tests', () => {
 			});
 		});
 	});
-	
+
 	after(function(done){
 		mongoose.connection.db.dropDatabase(() => {
 			mongoose.connection.close(done);
@@ -74,18 +74,11 @@ describe('Database Tests', () => {
 });
 
 describe('Integration Tests', () => {
-	let server;
-
-	before((done) => {
-		server = api.server(() => {
-			var port = server.address().port;
-			console.log('Example app listening at http://localhost:%s', port);
-
-			done()
-		});
+	before(async () => {
+		await mongoose.connect(process.env.MONGODB_URI);
 	});
 
-	describe('Test Server Response', () => {
+	describe('Test Server', () => {
 		it('should return "Hello world!"', (done) => {
 			supertest
 				.get("/")
@@ -96,6 +89,8 @@ describe('Integration Tests', () => {
 	});
 
 	after(function(done){
-		server.close(done)
+		mongoose.connection.db.dropDatabase(() => {
+			mongoose.connection.close(done);
+		});
 	});
 });
