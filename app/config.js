@@ -1,4 +1,8 @@
 module.exports = {
-	dbPath: 'mongodb://localhost/node-account',
-	dbTest: 'mongodb://localhost/test-node-account'
+	test: {
+		db: 'mongodb://localhost/test-node-account'
+	},
+	dev: {
+		db: process.env.MONGODB_URI
+	}
 }

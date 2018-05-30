@@ -2,12 +2,12 @@
   "name": "node-account",
   "version": "1.0.0",
   "description": "User Registration template",
-  "main": "app/api.js",
+  "main": "index.js",
   "scripts": {
     "mongo:start": "sudo  mongod -f mongod.conf --pidfilepath \"$(pwd)/mongo/mongod.pid\"",
     "mongo:stop": "sudo kill `cat mongo/mongod.pid`",
-    "api:start": "nodemon app/api",
-    "test": "mocha specs/**/**.spec.js"
+    "api:dev": "NODE_ENV=dev MONGODB_URI=mongodb://localhost/test-node nodemon index",
+    "test": "NODE_ENV=test mocha specs/**/**.spec.js"
   },
   "repository": "https://github.com/andreanaya/node-account.git",
   "author": "Andre Anaya <andre.anaya@gmail.com>",
@@ -21,6 +21,7 @@
   "devDependencies": {
     "chai": "^4.1.2",
     "mocha": "^5.2.0",
-    "nodemon": "^1.17.5"
+    "nodemon": "^1.17.5",
+    "supertest": "^3.1.0"
   }
 }

@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 const chai = require('chai');
 const expect = chai.expect;
-const dbTest = require('../app/config.js').dbTest;
+const api = require('../app/api');
+var supertest = require("supertest")(api.app);
 
 const Name = mongoose.model('Name', new Schema({
 	name: { type: String, required: true, unique: true }
@@ -10,10 +11,7 @@ const Name = mongoose.model('Name', new Schema({
 
 describe('Database Tests', () => {
 	before((done) => {
-		mongoose.connect(dbTest);
-		const db = mongoose.connection;
-		db.on('error', console.error.bind(console, 'connection error'));
-		db.once('open', done);
+		api.db().then(done);
 	});
 	
 	describe('Test Database', () => {
@@ -72,5 +70,32 @@ describe('Database Tests', () => {
 		mongoose.connection.db.dropDatabase(() => {
 			mongoose.connection.close(done);
 		});
+	});
+});
+
+describe('Integration Tests', () => {
+	let server;
+
+	before((done) => {
+		server = api.server(() => {
+			var port = server.address().port;
+			console.log('Example app listening at http://localhost:%s', port);
+
+			done()
+		});
+	});
+
+	describe('Test Server Response', () => {
+		it('should return "Hello world!"', (done) => {
+			supertest
+				.get("/")
+				.expect(200)
+				.expect("Hello world!")
+				.end(done);
+		});
+	});
+
+	after(function(done){
+		server.close(done)
 	});
 });
