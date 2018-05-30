@@ -15,15 +15,14 @@ app.use('/', (req, res) => {
 	res.send('Hello world!');
 });
 
-mongoose.connect(dbPath, (error) => {
-	if(error) { 
-		
-	} else {
-		let server = app.listen(process.env.PORT || 3000, () => {
-			let host = server.address().address;
-			let port = server.address().port;
+mongoose.connect(dbPath);
+const db = mongoose.connection;
+db.on('error', console.log('connection error'));
+db.once('open', function() {
+	let server = app.listen(process.env.PORT || 3000, () => {
+		let host = server.address().address;
+		let port = server.address().port;
 
-			console.log('Example app listening at http://localhost:%s', port);
-		});
-	}
+		console.log('Example app listening at http://localhost:%s', port);
+	});
 });
