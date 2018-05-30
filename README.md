@@ -1,2 +1,2 @@
 # node-account
-Scalable Node.js user registration module for Express Mongo applications.
+Node.js user registration template for Express Mongo applications.
