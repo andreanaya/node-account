@@ -5,7 +5,7 @@ const expect = chai.expect;
 const app = require('../app/index');
 const supertest = require("supertest")(app);
 
-const Name = mongoose.model('Name', new Schema({
+const SampleModel = mongoose.model('Sample', new Schema({
 	name: { type: String, required: true, unique: true }
 }));
 
@@ -16,7 +16,7 @@ describe('Database Tests', () => {
 
 	describe('Test Database', () => {
 		it('should be invalid if name is empty', (done) => {
-			var model = new Name();
+			var model = new SampleModel();
 	 
 			model.validate((err) => {
 				expect(err.errors.name).to.exist;
@@ -25,7 +25,7 @@ describe('Database Tests', () => {
 		});
 
 		it('should be invalid if name is in wrong format', (done) => {
-			var model = Name({_name: 'Jon'});
+			var model = SampleModel({_name: 'Jon'});
 
 			model.validate((err) => {
 				expect(err.errors.name).to.exist;
@@ -34,7 +34,7 @@ describe('Database Tests', () => {
 		});
 
 		it('should be valid if name is saved on database', (done) => {
-			var model = Name({name: 'Jon'});
+			var model = SampleModel({name: 'Jon'});
 
 			model.save((err) => {
 				expect(err).to.not.exist;
@@ -43,7 +43,7 @@ describe('Database Tests', () => {
 		});
 
 		it('should be invalid if name is already saved on database', (done) => {
-			var model = Name({name: 'Jon'});
+			var model = SampleModel({name: 'Jon'});
 
 			model.save((err) => {
 				expect(err).to.exist;
@@ -52,14 +52,14 @@ describe('Database Tests', () => {
 		});
 
 		it('should be valid names list has at least 1 result', (done) => {
-			Name.find().exec((err, names) => {
+			SampleModel.find().exec((err, names) => {
 				expect(names.length).to.be.at.least(1);
 				done();
 			});
 		});
 
 		it('should be valid if name is listed', (done) => {
-			Name.find({name: 'Jon'}).exec((err, names) => {
+			SampleModel.find({name: 'Jon'}).exec((err, names) => {
 				expect(names[0].name).to.equal('Jon');
 				done();
 			});
@@ -79,11 +79,10 @@ describe('Integration Tests', () => {
 	});
 
 	describe('Test Server', () => {
-		it('should return "Hello world!"', (done) => {
+		it('should return 404', (done) => {
 			supertest
 				.get("/")
-				.expect(200)
-				.expect("Hello world!")
+				.expect(404)
 				.end(done);
 		});
 	});
