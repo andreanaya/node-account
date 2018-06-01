@@ -69,12 +69,7 @@ exports.authenticate = {
 		sanitize('password').trim()
 	],
 	handler: function(req, res) {
-		passport.authenticate('local', function(err, user, info){
-			if (err) {
-				res.status(404).json(err);
-				return;
-			}
-
+		passport.authenticate('local', function(user, info){
 			if(user){
 				let token = user.generateToken();
 				res.status(200);
@@ -83,7 +78,10 @@ exports.authenticate = {
 					token: token
 				});
 			} else {
-				res.status(401).json(info);
+				res.status(401).json({
+					success: false,
+					info: info
+				});
 			}
 		})(req, res);
 	}

@@ -7,7 +7,7 @@
     "mongo:start": "sudo  mongod -f mongod.conf --pidfilepath \"$(pwd)/mongo/mongod.pid\"",
     "mongo:stop": "sudo kill `cat mongo/mongod.pid`",
     "api:dev": "NODE_ENV=dev MONGODB_URI=mongodb://localhost/node-account TOKEN_SECRET=$up3rS3cr3! nodemon index",
-    "test": "NODE_ENV=test MONGODB_URI=mongodb://localhost/test-node-account TOKEN_SECRET=$up3rS3cr3! nyc --reporter=html --reporter=text mocha './specs/**/*.spec.js'"
+    "test": "NODE_ENV=test MONGODB_URI=mongodb://localhost/test-node-account TOKEN_SECRET=$up3rS3cr3! nyc --reporter=html --reporter=text mocha './specs/index.spec.js'"
   },
   "repository": "https://github.com/andreanaya/node-account.git",
   "author": "Andre Anaya <andre.anaya@gmail.com>",
@@ -27,6 +27,7 @@
     "mocha": "^5.2.0",
     "nodemon": "^1.17.5",
     "nyc": "^11.8.0",
+    "sinon": "^5.0.10",
     "supertest": "^3.1.0"
   }
 }

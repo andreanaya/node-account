@@ -3,28 +3,26 @@ const LocalStrategy = require('passport-local').Strategy;
 const mongoose = require('mongoose');
 const User = require('../models/User');
 
+
 passport.use(new LocalStrategy({
-		usernameField: 'username'
+		usernameField: 'username',
+		passwordField: 'password'
 	},
 	function(username, password, done) {
-		User.findOne({ username: username }, function (err, user) {
-			if (err) { return done(err); }
-			// Return if user not found in database
+		User.findOne({ username: username }).then((user) => {
 			if (!user) {
-				return done(null, false, {
+				done(false, {
 					sucess: false,
 					message: 'User not found'
 				});
-			}
-			// Return if password is wrong
-			if (!user.validatePassword(password)) {
-				return done(null, false, {
+			} else if (!user.validatePassword(password)) {
+				done(false, {
 					sucess: false,
 					message: 'Incorrect password'
 				});
+			} else {
+				done(user);
 			}
-			// If credentials are correct, return the user object
-			return done(null, user);
 		});
 	}
 ));
