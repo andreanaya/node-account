@@ -1,3 +1,4 @@
+const User = require('../models/User');
 const { check, validationResult } = require('express-validator/check');
 const { sanitize } = require('express-validator/filter');
 const { password } = require('../utils/RegExp');
@@ -23,13 +24,30 @@ exports.register = {
 			.exists().withMessage('missing')
 			.custom((value, { req }) => value === req.body.password).withMessage('invalid')
 	],
-	handler: (req, res) => {
+	handler: async (req, res) => {
 		let errors = validationResult(req);
 
 		if(errors.isEmpty()) {
-			res.status(200).json({
-				success: true
+			let model = new User({
+				username: req.body.username,
+				email: req.body.email
 			});
+
+			model.setPassword(req.body.password);
+
+			try {
+				let data = await model.save();
+
+				res.status(200).json({
+					success: true,
+					data: data
+				});
+			} catch(err) {
+				res.status(400).json({
+					success: false,
+					error: err
+				});
+			}
 		} else {
 			res.status(400).json({
 				success: false,
