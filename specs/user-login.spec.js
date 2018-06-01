@@ -54,4 +54,43 @@ module.exports = describe('API tests ', () => {
 			});
 		});
 	});
+
+	describe('User Account tests ', () => {
+		describe('Endpoint Tests', () => {
+			it('should return 401 if unauthorized', async () => {
+				let res = await supertest.get("/api/account").expect(401);
+				
+				expect(res.body.success).to.be.false;
+				expect(res.body.info.message).to.be.equal('Unauthorized access');
+			});
+
+			it('should return 401 if payload doesn\'t have id', async () => {
+				var expiry = new Date();
+				expiry.setDate(expiry.getDate() + 7);
+
+				let res = await supertest.get("/api/account")
+				.set('Authorization', 'Bearer ' + require('jsonwebtoken').sign({
+					email: 'test@email.com',
+					username: 'testuser',
+					exp: parseInt(expiry.getTime() / 1000),
+				}, process.env.TOKEN_SECRET)).expect(401);
+				
+				expect(res.body.success).to.be.false;
+				expect(res.body.info.message).to.be.equal('Unauthorized access');
+			});
+
+			it('should return 200 if authorized', async () => {
+				let res = await supertest.post("/api/login").send({
+					username: 'testuser',
+					password: 'P4ssw0rd!',
+				});
+
+				res = await supertest.get("/api/account")
+				.set('Authorization', 'Bearer ' + res.body.token).expect(200);
+				
+				expect(res.body.success).to.be.true;
+				expect(res.body.data).to.exist;
+			});
+		});
+	});
 });

@@ -72,8 +72,7 @@ exports.authenticate = {
 		passport.authenticate('local', function(user, info){
 			if(user){
 				let token = user.generateToken();
-				res.status(200);
-				res.json({
+				res.status(200).json({
 					success: true,
 					token: token
 				});
@@ -86,3 +85,21 @@ exports.authenticate = {
 		})(req, res);
 	}
 }
+
+
+
+exports.account = {
+	handler: function(req, res) {
+		if (!req.payload._id) {
+			res.status(401).json({
+				success: false,
+				info: { message: 'Unauthorized access' }
+			});
+		} else {
+			User.findById(req.payload._id).exec(function(err, user) {
+				res.status(200).json({success: true, data:user});
+			});
+		}
+	}
+}
+
