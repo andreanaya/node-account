@@ -2,6 +2,7 @@ const User = require('../models/User');
 const { check, validationResult } = require('express-validator/check');
 const { sanitize } = require('express-validator/filter');
 const { password } = require('../utils/RegExp');
+const passport = require('passport');
 
 exports.register = {
 	validation: [
@@ -59,5 +60,31 @@ exports.register = {
 				})
 			});
 		}
+	}
+}
+
+exports.authenticate = {
+	validation: [
+		sanitize('username').trim(),
+		sanitize('password').trim()
+	],
+	handler: function(req, res) {
+		passport.authenticate('local', function(err, user, info){
+			if (err) {
+				res.status(404).json(err);
+				return;
+			}
+
+			if(user){
+				let token = user.generateToken();
+				res.status(200);
+				res.json({
+					success: true,
+					token: token
+				});
+			} else {
+				res.status(401).json(info);
+			}
+		})(req, res);
 	}
 }
