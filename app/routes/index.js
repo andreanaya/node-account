@@ -1,13 +1,12 @@
+const User = require('../controllers/User');
 
-let jwt = require('express-jwt');
+const jwt = require('express-jwt');
 let auth = jwt({
 	secret: process.env.TOKEN_SECRET,
 	userProperty: 'payload'
 });
 
 module.exports = function(app) {
-	let User = require('../controllers/User');
-
 	app.route('/api/register')
 		.post(User.register.validation, User.register.handler);
 
@@ -15,14 +14,8 @@ module.exports = function(app) {
 		.post(User.authenticate.validation, User.authenticate.handler);
 
 	app.route('/api/account')
-		.get(auth, User.account.handler);
+		.get(auth, User.account.handler)
+		.put(auth, User.update.validation, User.update.handler);
 
-	app.use(function (err, req, res, next) {
-		if (err.name === 'UnauthorizedError') {
-			res.status(401).json({
-				success: false,
-				info: { message: 'Unauthorized access' }
-			});
-		}
-	});
+	app.use(User.error);
 };

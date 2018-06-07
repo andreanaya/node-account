@@ -4,34 +4,27 @@ const expect = chai.expect;
 const app = require('../app/index');
 const supertest = require("supertest")(app);
 const User = require('../app/models/User');
+const bcrypt = require('bcrypt');
 
 module.exports = describe('API tests ', () => {
 	describe('User Registration tests ', () => {
 		describe('Model Validation', () => {
 			it('should be invalid if is empty', (done) => {
 				let model = new User();
-		 
+				
 				model.validate((err) => {
 					expect(err).to.exist;
 					done();
 				});
 			});
 
-			it('should be invalid if hash and salt are not defined', (done) => {
-				let model = new User();
-		 
-				model.validate((err) => {
-					expect(err.errors.hash).to.exist;
-					expect(err.errors.salt).to.exist;
-					done();
+			it('should be invalid if password is blank', (done) => {
+				let model = new User({
+					username: 'testuser',
+					email: 'test@email.com',
+					password: ''
 				});
-			});
-
-			it('should be invalid if any field is not defined', (done) => {
-				let model = new User();
-
-				model.setPassword('P4ssw0rd!');
-
+				
 				model.validate((err) => {
 					expect(err).to.exist;
 					done();
@@ -41,10 +34,9 @@ module.exports = describe('API tests ', () => {
 			it('should be valid if all fields are defined', (done) => {
 				let model = new User({
 					username: 'testuser',
-					email: 'test@email.com'
+					email: 'test@email.com',
+					password: 'test'
 				});
-
-				model.setPassword('P4ssw0rd!');
 
 				model.validate((err) => {
 					expect(err).to.not.exist;
@@ -128,24 +120,36 @@ module.exports = describe('API tests ', () => {
 			});
 
 			it('should return 200 if testuser is saved on database', async () => {
+				let username = 'testuser';
+				let email = 'test@email.com';
+				let password = 'P4ssw0rd!';
+
 				let res = await supertest.post("/api/register").send({
-					username: 'testuser',
-					email: 'test@email.com',
-					password: 'P4ssw0rd!',
-					passwordConfirmation: 'P4ssw0rd!'
-				}).expect(200).expect('Content-Type', /json/);
+					username: username,
+					email: email,
+					password: password,
+					passwordConfirmation: password
+				}).expect(200);
 				
 				expect(res.body.success).to.be.true;
-				expect(res.body.data).to.exist;
+				expect(res.body.data).to.deep.include({
+					username: username,
+					email: email
+				});
+				expect(bcrypt.compareSync(password, res.body.data.password)).to.be.true;
 			});
 
 			it('should return 400 if testuser is already registered on database', async () => {
+				let username = 'testuser';
+				let email = 'test@email.com';
+				let password = 'P4ssw0rd!';
+
 				let res = await supertest.post("/api/register").send({
-					username: 'testuser',
-					email: 'test@email.com',
-					password: 'P4ssw0rd!',
-					passwordConfirmation: 'P4ssw0rd!'
-				}).expect(400).expect('Content-Type', /json/);
+					username: username,
+					email: email,
+					password: password,
+					passwordConfirmation: password
+				}).expect(400);
 				
 				expect(res.body.success).to.be.false;
 				expect(res.body.error.code).to.be.equals(11000);
