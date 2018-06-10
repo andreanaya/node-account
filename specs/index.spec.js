@@ -10,6 +10,8 @@ describe('API tests ', () => {
 
 	require('./user-registration.spec');
 	require('./user-login.spec');
+	require('./user-update.spec');
+	require('./user-delete.spec');
 
 	after(close);
 });

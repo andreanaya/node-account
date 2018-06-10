@@ -166,6 +166,31 @@ exports.update = {
 	}
 }
 
+exports.delete = {
+	handler: async function(req, res) {
+		if (!req.payload._id) {
+			res.status(401).json({
+				success: false,
+				info: { message: 'Unauthorized access' }
+			});
+		} else {
+			try {
+				let data = await User.findByIdAndRemove(req.payload._id);
+
+				res.status(200).json({
+					success: true,
+					data: data
+				});
+			} catch(err) {
+				res.status(400).json({
+					success: false,
+					error: err
+				});
+			}
+		}
+	}
+}
+
 exports.error = function (err, req, res, next) {
 	if (err.name === 'UnauthorizedError') {
 		res.status(401).json({

@@ -15,7 +15,8 @@ module.exports = function(app) {
 
 	app.route('/api/account')
 		.get(auth, User.account.handler)
-		.put(auth, User.update.validation, User.update.handler);
+		.put(auth, User.update.validation, User.update.handler)
+		.delete(auth, User.delete.handler);
 
 	app.use(User.error);
 };
