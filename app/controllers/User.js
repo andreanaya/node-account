@@ -3,13 +3,25 @@ const { check, validationResult } = require('express-validator/check');
 const { sanitize } = require('express-validator/filter');
 const { password } = require('../utils/RegExp');
 const passport = require('passport');
+const nodemailer = require('nodemailer');
+const jwt = require('jsonwebtoken');
+
+let aws = require('aws-sdk');
+
+aws.config.loadFromPath('aws.json');
+
+let transporter = nodemailer.createTransport({
+    SES: new aws.SES({
+        apiVersion: '2012-10-17'
+    })
+});
 
 exports.register = {
 	validation: [
-		sanitize('username').trim(),
+		sanitize('username').trim().escape(),
 		sanitize('email').trim().normalizeEmail({
-			gmail_remove_dots: true,
-			gmail_remove_subaddress: true
+			gmail_remove_dots: false,
+			gmail_remove_subaddress: false
 		}),
 		sanitize('password').trim(),
 		check('username')
@@ -38,6 +50,31 @@ exports.register = {
 			try {
 				let data = await model.save();
 
+				let expiry = new Date();
+				expiry.setDate(expiry.getDate() + 7);
+
+				let token = jwt.sign({
+					_id: data._id,
+					email: data.email,
+					exp: parseInt(expiry.getTime() / 1000),
+			  	}, process.env.TOKEN_SECRET);
+
+			  	let url = 'http://localhost:3000/confirm/'+token;
+
+				let mailOptions = {
+					from: 'hello@andreanaya.com',
+					to: req.body.email,
+					subject: 'Please confirm your email',
+					html: '<p>Please click on the link bellow to confirm your email</p><a href="'+url+'" target="_blank">'+url+'</a>'
+				};
+
+				transporter.sendMail(mailOptions, function (err, info) {
+				   if(err)
+				     console.log(err)
+				   else
+				     console.log(info);
+				});
+
 				res.status(200).json({
 					success: true,
 					data: data
@@ -62,19 +99,53 @@ exports.register = {
 	}
 }
 
+exports.confirm = {
+	handler: async function(req, res) {
+		let token = req.params.token;
+
+		if(token) {
+			try {
+				var payload = jwt.verify(token, process.env.TOKEN_SECRET);
+
+				let model = await User.findById(payload._id);
+
+				if(model.active === false) {
+					model.active = true;
+					await model.save();
+					res.status(200).send('Email confirmed');
+				} else {
+					throw new Error('User active');
+				}
+			} catch(err) {
+				res.status(400).send(err.message);
+			}
+		}
+		else {
+			res.status(400).send('Token not found');
+		}
+	}
+}
+
 exports.authenticate = {
 	validation: [
-		sanitize('username').trim(),
-		sanitize('password').trim()
+		sanitize('username').trim().escape(),
+		sanitize('password').trim().escape()
 	],
 	handler: function(req, res) {
 		passport.authenticate('local', function(user, info){
 			if(user){
-				let token = user.generateToken();
-				res.status(200).json({
-					success: true,
-					token: token
-				});
+				if(user.active) {
+					let token = user.generateToken();
+					res.status(200).json({
+						success: true,
+						token: token
+					});
+				} else {
+					res.status(401).json({
+						success: false,
+						info: 'User not confirmed'
+					});	
+				}
 			} else {
 				res.status(401).json({
 					success: false,
@@ -104,7 +175,7 @@ exports.account = {
 
 exports.update = {
 	validation: [
-		sanitize('username').trim(),
+		sanitize('username').trim().escape(),
 		sanitize('email').trim().normalizeEmail({
 			gmail_remove_dots: true,
 			gmail_remove_subaddress: true
