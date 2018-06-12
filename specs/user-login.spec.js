@@ -5,6 +5,7 @@ const app = require('../app/index');
 const supertest = require("supertest")(app);
 const User = require('../app/models/User');
 const UserController = require('../app/controllers/User');
+const {strictRate, lowRate} = require('../app/utils/RateLimits');
 const bcrypt = require('bcrypt');
 const {generateToken} = require('../app/utils/Token');
 
@@ -17,6 +18,43 @@ module.exports = describe('API tests ', () => {
 				expect(res.body.success).to.be.false;
 				expect(res.body.info).to.exist;
 			});
+
+			it('should return 429 strict rate-limit', async () => {
+				let res = new FakeResponse();
+
+				process.env.NODE_ENV = 'prod';
+				
+				let options = strictRate();
+
+				expect(options.max).to.be.equals(1);
+
+				await options.handler({}, res);
+
+				process.env.NODE_ENV = 'test';
+
+				expect(res.statusCode).to.equal(429);
+				expect(res.body.success).to.be.false;
+				expect(res.body.error.message).to.be.equals('Too many requests, please try again later');
+			});
+
+			it('should return 429 low rate-limit', async () => {
+				let res = new FakeResponse();
+
+				process.env.NODE_ENV = 'prod';
+				
+				let options = lowRate();
+
+				expect(options.max).to.be.equals(5);
+
+				await options.handler({}, res);
+
+				process.env.NODE_ENV = 'test';
+
+				expect(res.statusCode).to.equal(429);
+				expect(res.body.success).to.be.false;
+				expect(res.body.error.message).to.be.equals('Too many requests, please try again later');
+			});
+
 
 			it('should return 401 if unauthorized', async () => {
 				let res = await supertest.post("/api/login").expect(401);

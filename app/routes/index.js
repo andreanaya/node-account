@@ -1,23 +1,28 @@
 const User = require('../controllers/User');
-
+const RateLimit = require('express-rate-limit');
+const {strictRate, lowRate} = require('../utils/RateLimits');
 const jwt = require('express-jwt');
 let auth = jwt({
 	secret: process.env.TOKEN_SECRET,
 	userProperty: 'payload'
 });
 
+
+let strictLimiter = new RateLimit(strictRate());
+let lowRateLimiter = new RateLimit(lowRate());
+
 module.exports = function(app) {
 	app.route('/api/register')
-		.post(User.register.validation, User.register.handler);
+		.post(strictLimiter, User.register.validation, User.register.handler);
 
 	app.route('/confirm/:token')
 		.get(User.confirm.handler);
 
 	app.route('/api/login')
-		.post(User.authenticate.validation, User.authenticate.handler);
+		.post(lowRateLimiter, User.authenticate.validation, User.authenticate.handler);
 
 	app.route('/api/resetpassword')
-		.post(User.reset.validation, User.reset.handler);
+		.post(lowRateLimiter, User.reset.validation, User.reset.handler);
 
 	app.route('/api/account')
 		.get(auth, User.account.handler)

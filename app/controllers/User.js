@@ -134,7 +134,9 @@ exports.authenticate = {
 			} else {
 				res.status(401).json({
 					success: false,
-					info: info
+					info: {
+						message: info.message
+					}
 				});
 			}
 		})(req, res);

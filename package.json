@@ -7,6 +7,7 @@
     "mongo:start": "sudo  mongod -f mongod.conf --pidfilepath \"$(pwd)/mongo/mongod.pid\"",
     "mongo:stop": "sudo kill `cat mongo/mongod.pid`",
     "api:dev": "NODE_ENV=dev MONGODB_URI=mongodb://localhost/node-account TOKEN_SECRET='$up3rS3cr3!' nodemon index",
+    "api:prod": "NODE_ENV=prod MONGODB_URI=mongodb://localhost/node-account TOKEN_SECRET='$up3rS3cr3!' nodemon index",
     "test": "NODE_ENV=test MONGODB_URI=mongodb://localhost/test-node-account TOKEN_SECRET='$up3rS3cr3!' nyc --reporter=html --reporter=text mocha './specs/index.spec.js'"
   },
   "repository": "https://github.com/andreanaya/node-account.git",
@@ -19,6 +20,7 @@
     "body-parser": "^1.18.3",
     "express": "^4.16.3",
     "express-jwt": "^5.3.1",
+    "express-rate-limit": "^2.11.0",
     "express-validator": "^5.2.0",
     "jsonwebtoken": "^8.2.2",
     "mongoose": "^5.1.3",
