@@ -2,19 +2,9 @@ const User = require('../models/User');
 const { check, validationResult } = require('express-validator/check');
 const { sanitize } = require('express-validator/filter');
 const { password } = require('../utils/RegExp');
+const Mail = require('../utils/Mail');
+const { generateToken, verify } = require('../utils/Token');
 const passport = require('passport');
-const nodemailer = require('nodemailer');
-const jwt = require('jsonwebtoken');
-
-let aws = require('aws-sdk');
-
-aws.config.loadFromPath('aws.json');
-
-let transporter = nodemailer.createTransport({
-    SES: new aws.SES({
-        apiVersion: '2012-10-17'
-    })
-});
 
 exports.register = {
 	validation: [
@@ -39,7 +29,7 @@ exports.register = {
 	],
 	handler: async (req, res) => {
 		let errors = validationResult(req);
-
+		
 		if(errors.isEmpty()) {
 			let model = new User({
 				username: req.body.username,
@@ -50,25 +40,23 @@ exports.register = {
 			try {
 				let data = await model.save();
 
-				let expiry = new Date();
-				expiry.setDate(expiry.getDate() + 7);
-
-				let token = jwt.sign({
+				let token = generateToken({
 					_id: data._id,
-					email: data.email,
-					exp: parseInt(expiry.getTime() / 1000),
-			  	}, process.env.TOKEN_SECRET);
+					email: data.email
+				});
 
-			  	let url = 'http://localhost:3000/confirm/'+token;
+				let url = 'http://localhost:3000/confirm/'+token;
 
-				let mailOptions = {
+				Mail.sendMail({
 					from: 'hello@andreanaya.com',
 					to: req.body.email,
 					subject: 'Please confirm your email',
+					text: 'Please click on the link bellow to confirm your email.\n\n'+url+'.',
 					html: '<p>Please click on the link bellow to confirm your email</p><a href="'+url+'" target="_blank">'+url+'</a>'
-				};
-
-				await transporter.sendMail(mailOptions);
+				}, (err, info) => {
+					// if(err) console.log(err);
+					// if(info) console.log('Email sent', info);
+				});
 
 				res.status(200).json({
 					success: true,
@@ -98,25 +86,20 @@ exports.confirm = {
 	handler: async function(req, res) {
 		let token = req.params.token;
 
-		if(token) {
-			try {
-				var payload = jwt.verify(token, process.env.TOKEN_SECRET);
+		try {
+			var payload = verify(token);
 
-				let model = await User.findById(payload._id);
+			let model = await User.findById(payload._id);
 
-				if(model.active === false) {
-					model.active = true;
-					await model.save();
-					res.status(200).send('Email confirmed');
-				} else {
-					throw new Error('User active');
-				}
-			} catch(err) {
-				res.status(400).send(err.message);
+			if(model.active === false) {
+				model.active = true;
+				await model.save();
+				res.status(200).send('Email confirmed');
+			} else {
+				throw new Error('User active');
 			}
-		}
-		else {
-			res.status(400).send('Token not found');
+		} catch(err) {
+			res.status(400).send(err.message);
 		}
 	}
 }
@@ -130,7 +113,11 @@ exports.authenticate = {
 		passport.authenticate('local', function(user, info){
 			if(user){
 				if(user.active) {
-					let token = user.generateToken();
+					let token = generateToken({
+						_id: user._id,
+						email: user.email,
+						username: user.username
+					});
 					
 					res.status(200).json({
 						success: true,
@@ -139,7 +126,9 @@ exports.authenticate = {
 				} else {
 					res.status(401).json({
 						success: false,
-						info: 'User not confirmed'
+						info: {
+							message: 'User not confirmed'
+						}
 					});	
 				}
 			} else {
@@ -173,17 +162,18 @@ exports.reset = {
 
 				await model.save();
 
-				let mailOptions = {
+				Mail.sendMail({
 					from: 'hello@andreanaya.com',
 					to: req.body.email,
 					subject: 'Password reset',
 					html: '<p>Your new password is: '+password+'</p>'
-				};
-
-				await transporter.sendMail(mailOptions);
+				}, (err, info) => {
+					// if(err) console.log(err);
+					// if(info) console.log('Email sent');
+				});
 
 				res.status(200).json({
-					success: 200,
+					success: true,
 					message: 'Password sent to email'
 				});
 			} else {
@@ -192,7 +182,7 @@ exports.reset = {
 		} catch(error) {
 			res.status(401).json({
 				success: false,
-				error: error.message
+				info: {message: error.message}
 			});
 		}
 	}
@@ -208,16 +198,17 @@ exports.account = {
 		} else {
 			try {
 				let model = await User.findById(req.payload._id);
-
-				console.log(model.created, req.payload.created);
-
-				if(model.created < req.payload.created) {
+				
+				if(model.created <= req.payload.iat) {
 					res.status(200).json({success: true, data:model});
 				} else {
-					throw new Error('Token expired');
+					throw new Error('Token revoked');
 				}
 			} catch(error) {
-				res.status(400).json({success: false, error:error.message});
+				res.status(400).json({
+					success: false,
+					info: {message: error.message}
+				});
 			}
 		}
 	}
@@ -256,7 +247,7 @@ exports.update = {
 				try {
 					let model = await User.findById(req.payload._id);
 
-					if(model.created < req.payload.created) {
+					if(model.created <= req.payload.iat) {
 						if(req.body.username) model.username = req.body.username;
 						if(req.body.email) model.email = req.body.email;
 						if(req.body.password) model.password = req.body.password;
@@ -268,12 +259,12 @@ exports.update = {
 							data: data
 						});
 					} else {
-						throw new Error('Token expired');
+						throw new Error('Token revoked');
 					}
-				} catch(err) {
+				} catch(error) {
 					res.status(400).json({
 						success: false,
-						error: err
+						error: {message: error.message}
 					});
 				}
 			} else {
@@ -301,21 +292,21 @@ exports.delete = {
 		} else {
 			try {
 				let data = await User.findById(req.payload._id);
-
-				if(model.created < req.payload.created) {
-					await model.remove();
+				
+				if(data.created <= req.payload.iat) {
+					await data.remove();
 
 					res.status(200).json({
 						success: true,
 						data: data
 					});
 				} else {
-					throw new Error('Token expired');
+					throw new Error('Token revoked');
 				}
-			} catch(err) {
+			} catch(error) {
 				res.status(400).json({
 					success: false,
-					error: err
+					error: {message: error.message}
 				});
 			}
 		}

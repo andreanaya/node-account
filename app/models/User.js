@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const { generateToken } = require('../utils/Token');
 const Schema = mongoose.Schema;
 
 const SALT_FACTOR = 10;
@@ -41,19 +41,6 @@ UserSchema.pre('save', async function() {
 
 UserSchema.methods.validatePassword = function(password) {
 	return bcrypt.compareSync(password, this.password);
-};
-
-UserSchema.methods.generateToken = function() {
-	var expiry = new Date();
-	expiry.setDate(expiry.getDate() + 7);
-
-	return jwt.sign({
-		_id: this._id,
-		email: this.email,
-		username: this.username,
-		created: parseInt(new Date().getTime() / 1000),
-		exp: parseInt(expiry.getTime() / 1000),
-  	}, process.env.TOKEN_SECRET);
 };
 
 module.exports = mongoose.model('User', UserSchema);

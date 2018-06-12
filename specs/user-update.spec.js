@@ -1,4 +1,4 @@
-const {connect, close, FakeResponse} = require('./utils');
+const {connect, close, FakeResponse, tempUser} = require('./utils');
 const chai = require('chai');
 const expect = chai.expect;
 const app = require('../app/index');
@@ -6,6 +6,7 @@ const supertest = require("supertest")(app);
 const User = require('../app/models/User');
 const UserController = require('../app/controllers/User');
 const bcrypt = require('bcrypt');
+const {generateToken} = require('../app/utils/Token');
 
 module.exports = describe('API tests ', () => {
 	describe('User Update tests ', () => {
@@ -84,46 +85,76 @@ module.exports = describe('API tests ', () => {
 			});
 
 			it('should return 200 if username and email updated', async () => {
-				let username = 'testuser';
-				let email = 'test@email.com';
-				let password = 'P4ssw0rd!';
+				let data = await tempUser();
 
-				let res = await supertest.post("/api/login").send({
-					username: username,
-					password: password
+				let token = generateToken({
+					_id: data._id,
+					email: data.email,
+					username: data.username
 				});
 
-				res = await supertest.put("/api/account")
-				.set('Authorization', 'Bearer ' + res.body.token).expect(200).send({
-					username: username,
-					email: email
-				});
+				let params = {
+					username: 'usertemp',
+					email: 'new@email.com'
+				};
+
+				let res = await supertest.put("/api/account")
+				.set('Authorization', 'Bearer ' + token).expect(200).send(params);
+
+				await data.remove();
 				
 				expect(res.body.success).to.be.true;
-				expect(res.body.data).to.deep.include({
-					username: username,
-					email: email
-				});
+				expect(res.body.data).to.deep.include(params);
 			});
 
 			it('should return 200 if password updated', async () => {
-				let username = 'testuser';
-				let email = 'test@email.com';
-				let password = 'P4ssw0rd!';
+				let data = await tempUser();
 
-				let res = await supertest.post("/api/login").send({
-					username: username,
-					password: password
+				let token = generateToken({
+					_id: data._id,
+					email: data.email,
+					username: data.username
 				});
 
-				res = await supertest.put("/api/account")
-				.set('Authorization', 'Bearer ' + res.body.token).expect(200).send({
+				let password = 'NewP4ssW0rd!'
+
+				res = await supertest.put("/api/account").send({
 					password: password,
 					passwordConfirmation: password
-				});
+				})
+				.set('Authorization', 'Bearer ' + token).expect(200);
+				
+				await data.remove();
 				
 				expect(res.body.success).to.be.true;
 				expect(bcrypt.compareSync(password, res.body.data.password)).to.be.true;
+			});
+
+			it('should return 400 if token revoked', async () => {
+				let data = await tempUser();
+
+				let date = new Date();
+				let iat = parseInt(date.getTime() / 1000) - 10;
+
+				let token = generateToken({
+					_id: data._id,
+					email: data.email,
+					username: data.username,
+					iat: iat
+				});
+
+				let password = 'NewP4ssW0rd!'
+
+				let res = await supertest.put("/api/account").send({
+					password: password,
+					passwordConfirmation: password
+				})
+				.set('Authorization', 'Bearer ' + token).expect(400);
+				
+				await data.remove();
+				
+				expect(res.body.success).to.be.false;
+				expect(res.body.error.message).to.be.equal('Token revoked');
 			});
 		});
 	});
