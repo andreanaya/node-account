@@ -21,7 +21,7 @@ module.exports = describe('API tests ', () => {
 			it('should be invalid if password is blank', (done) => {
 				let model = new User({
 					username: 'testuser',
-					email: 'test@email.com',
+					email: 'test@andreanaya.com',
 					password: ''
 				});
 				
@@ -34,7 +34,7 @@ module.exports = describe('API tests ', () => {
 			it('should be valid if all fields are defined', (done) => {
 				let model = new User({
 					username: 'testuser',
-					email: 'test@email.com',
+					email: 'test@andreanaya.com',
 					password: 'test'
 				});
 
@@ -121,7 +121,7 @@ module.exports = describe('API tests ', () => {
 
 			it('should return 200 if testuser is saved on database', async () => {
 				let username = 'testuser';
-				let email = 'test@email.com';
+				let email = 'test@andreanaya.com';
 				let password = 'P4ssw0rd!';
 
 				let res = await supertest.post("/api/register").send({
@@ -141,7 +141,7 @@ module.exports = describe('API tests ', () => {
 
 			it('should return 400 if testuser is already registered on database', async () => {
 				let username = 'testuser';
-				let email = 'test@email.com';
+				let email = 'test@andreanaya.com';
 				let password = 'P4ssw0rd!';
 
 				let res = await supertest.post("/api/register").send({

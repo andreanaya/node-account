@@ -68,12 +68,7 @@ exports.register = {
 					html: '<p>Please click on the link bellow to confirm your email</p><a href="'+url+'" target="_blank">'+url+'</a>'
 				};
 
-				transporter.sendMail(mailOptions, function (err, info) {
-				   if(err)
-				     console.log(err)
-				   else
-				     console.log(info);
-				});
+				await transporter.sendMail(mailOptions);
 
 				res.status(200).json({
 					success: true,
@@ -136,6 +131,7 @@ exports.authenticate = {
 			if(user){
 				if(user.active) {
 					let token = user.generateToken();
+					
 					res.status(200).json({
 						success: true,
 						token: token
@@ -156,19 +152,73 @@ exports.authenticate = {
 	}
 }
 
+exports.reset = {
+	validation: [
+		sanitize('email').trim().normalizeEmail({
+			gmail_remove_dots: false,
+			gmail_remove_subaddress: false
+		}),
+		check('email')
+			.optional()
+			.isEmail().withMessage('invalid'),
+	],
+	handler: async function(req, res) {
+		try {
+			let model = await User.findOne({email: req.body.email});
 
+			if(model.active) {
+				let password = Math.random().toString(36).slice(-8);
+
+				model.password = password;
+
+				await model.save();
+
+				let mailOptions = {
+					from: 'hello@andreanaya.com',
+					to: req.body.email,
+					subject: 'Password reset',
+					html: '<p>Your new password is: '+password+'</p>'
+				};
+
+				await transporter.sendMail(mailOptions);
+
+				res.status(200).json({
+					success: 200,
+					message: 'Password sent to email'
+				});
+			} else {
+				throw new Error('User not active')
+			}
+		} catch(error) {
+			res.status(401).json({
+				success: false,
+				error: error.message
+			});
+		}
+	}
+}
 
 exports.account = {
-	handler: function(req, res) {
+	handler: async function(req, res) {
 		if (!req.payload._id) {
 			res.status(401).json({
 				success: false,
 				info: { message: 'Unauthorized access' }
 			});
 		} else {
-			User.findById(req.payload._id).exec(function(err, user) {
-				res.status(200).json({success: true, data:user});
-			});
+			try {
+				let model = await User.findById(req.payload._id);
+
+				console.log(model.created, req.payload.created);
+
+				if(model.created < req.payload.created) {
+					res.status(200).json({success: true, data:model});
+				} else {
+					throw new Error('Token expired');
+				}
+			} catch(error) {
+				res.status(400).json({success: false, error:error.message});
+			}
 		}
 	}
 }
@@ -177,8 +227,8 @@ exports.update = {
 	validation: [
 		sanitize('username').trim().escape(),
 		sanitize('email').trim().normalizeEmail({
-			gmail_remove_dots: true,
-			gmail_remove_subaddress: true
+			gmail_remove_dots: false,
+			gmail_remove_subaddress: false
 		}),
 		sanitize('password').trim(),
 		check('username')
@@ -205,17 +255,21 @@ exports.update = {
 			if(errors.isEmpty()) {
 				try {
 					let model = await User.findById(req.payload._id);
-					
-					if(req.body.username) model.username = req.body.username;
-					if(req.body.email) model.email = req.body.email;
-					if(req.body.password) model.password = req.body.password;
 
-					let data = await model.save();
+					if(model.created < req.payload.created) {
+						if(req.body.username) model.username = req.body.username;
+						if(req.body.email) model.email = req.body.email;
+						if(req.body.password) model.password = req.body.password;
 
-					res.status(200).json({
-						success: true,
-						data: data
-					});
+						let data = await model.save();
+
+						res.status(200).json({
+							success: true,
+							data: data
+						});
+					} else {
+						throw new Error('Token expired');
+					}
 				} catch(err) {
 					res.status(400).json({
 						success: false,
@@ -246,12 +300,18 @@ exports.delete = {
 			});
 		} else {
 			try {
-				let data = await User.findByIdAndRemove(req.payload._id);
+				let data = await User.findById(req.payload._id);
 
-				res.status(200).json({
-					success: true,
-					data: data
-				});
+				if(model.created < req.payload.created) {
+					await model.remove();
+
+					res.status(200).json({
+						success: true,
+						data: data
+					});
+				} else {
+					throw new Error('Token expired');
+				}
 			} catch(err) {
 				res.status(400).json({
 					success: false,

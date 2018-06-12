@@ -16,6 +16,9 @@ module.exports = function(app) {
 	app.route('/api/login')
 		.post(User.authenticate.validation, User.authenticate.handler);
 
+	app.route('/api/resetpassword')
+		.post(User.reset.validation, User.reset.handler);
+
 	app.route('/api/account')
 		.get(auth, User.account.handler)
 		.put(auth, User.update.validation, User.update.handler)

@@ -25,6 +25,9 @@ var UserSchema = new Schema({
 	active: {
 		type: Boolean,
 		default: false
+	},
+	created: {
+		type: Number
 	}
 });
 
@@ -32,6 +35,7 @@ UserSchema.pre('save', async function() {
 	if (this.isModified('password')) {
 		let hash = await bcrypt.hash(this.password, SALT_FACTOR);
 		this.password = hash;
+		this.created = parseInt(new Date().getTime() / 1000);
 	}
 });
 
@@ -47,6 +51,7 @@ UserSchema.methods.generateToken = function() {
 		_id: this._id,
 		email: this.email,
 		username: this.username,
+		created: parseInt(new Date().getTime() / 1000),
 		exp: parseInt(expiry.getTime() / 1000),
   	}, process.env.TOKEN_SECRET);
 };
