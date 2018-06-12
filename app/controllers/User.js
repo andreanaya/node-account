@@ -83,6 +83,10 @@ exports.register = {
 }
 
 exports.confirm = {
+	validation: [
+		sanitize('token').trim().escape(),
+		check('token').isHash('sha256')
+	],
 	handler: async function(req, res) {
 		let token = req.params.token;
 

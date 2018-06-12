@@ -1,17 +1,22 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
-var passport = require('passport');
+const passport = require('passport');
 
 require('./config/passport');
 
 const app = express();
 
-app.use(bodyParser.json());                                     
-app.use(bodyParser.urlencoded({extended: true}));               
-app.use(bodyParser.text());                                    
-app.use(bodyParser.json({ type: 'application/json'}));
+app.use(helmet());
+
+app.use(cookieParser());
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.text());
 
 app.use(passport.initialize());
 

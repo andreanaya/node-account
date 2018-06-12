@@ -1,22 +1,25 @@
+const csrf = require('csurf');
+const jwt = require('express-jwt');
 const User = require('../controllers/User');
 const RateLimit = require('express-rate-limit');
 const {strictRate, lowRate} = require('../utils/RateLimits');
-const jwt = require('express-jwt');
+
+let csrfProtection = csrf({ cookie: true });
+
 let auth = jwt({
 	secret: process.env.TOKEN_SECRET,
 	userProperty: 'payload'
 });
 
-
 let strictLimiter = new RateLimit(strictRate());
 let lowRateLimiter = new RateLimit(lowRate());
 
 module.exports = function(app) {
+	app.route('/confirm/:token')
+		.get(User.confirm.validation, User.confirm.handler);
+
 	app.route('/api/register')
 		.post(strictLimiter, User.register.validation, User.register.handler);
-
-	app.route('/confirm/:token')
-		.get(User.confirm.handler);
 
 	app.route('/api/login')
 		.post(lowRateLimiter, User.authenticate.validation, User.authenticate.handler);
