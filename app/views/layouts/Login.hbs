@@ -1,0 +1,19 @@
+<h1>{{title}}</h1>
+
+{{#message}}<p>{{this}}</p>{{/message}}
+
+<form action="/login" method="POST" autocomplete>
+	<p>
+		<label for="username">Username</label><br/>
+		<input type="text" id="username" name="username" value="{{username}}"><br/>
+	</p>
+
+
+	<p>
+		<label for="password">Password</label><br/>
+		<input type="password" id="password" name="password" autocomplete><br/>
+	</p>
+	
+	<button type="submit">Login</button>
+	{{#error}}<p style="color: red;">{{this}}</p>{{/error}}
+</form>

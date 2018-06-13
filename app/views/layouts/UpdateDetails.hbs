@@ -1,0 +1,48 @@
+<h1>{{title}}</h1>
+
+<form action="/update" method="POST">
+	<p>
+		<label for="username">Username</label><br/>
+		<input type="text" id="username" name="username" value="{{fields.username}}"><br/>
+		{{#errors.username}}
+		<span style="color: red;">
+			{{#if_eq this 'invalid'}}
+				Username is invalid
+			{{else}}
+				{{this}}
+			{{/if_eq}}
+		</span>
+		{{/errors.username}}
+	</p>
+
+
+	<p>
+		<label for="email">Email</label><br/>
+		<input type="email" id="email" name="email" value="{{fields.email}}"><br/>
+		{{#errors.email}}
+		<span style="color: red;">
+			{{#if_eq this 'invalid'}}
+				Email is invalid
+			{{else}}
+				{{this}}
+			{{/if_eq}}
+		</span>
+		{{/errors.email}}
+	</p>
+
+	<p>
+		<label for="password">New password</label><br/>
+		<input type="password" id="password" name="password"><br/>
+		{{#errors.password}}<span style="color: red;">Password is invalid</span>{{/errors.password}}
+	</p>
+
+
+	<p>
+		<label for="passwordConfirmation">Password Confirmation</label><br/>
+		<input type="password" id="passwordConfirmation" name="passwordConfirmation"><br/>
+		{{#errors.passwordConfirmation}}<span style="color: red;">Password confirmation doesn't match.</span>{{/errors.passwordConfirmation}}
+	</p>
+	
+	<button type="submit">Update details</button>
+	{{#errors.server}}<span style="color: red;">{{this}}</span>{{/errors.server}}
+</form>

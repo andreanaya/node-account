@@ -6,17 +6,35 @@ const Mail = require('../utils/Mail');
 const { generateToken, verify } = require('../utils/Token');
 const passport = require('passport');
 
+const register = async function(params) {
+	let model = new User(params);
+
+	let data = await model.save();
+
+	let token = generateToken({
+		_id: data._id,
+		email: data.email
+	});
+
+	let url = 'https://localhost:3000/confirm/'+token;
+
+	Mail.sendMail({
+		from: 'hello@andreanaya.com',
+		to: data.email,
+		subject: 'Please confirm your email',
+		text: 'Please click on the link bellow to confirm your email.\n\n'+url+'.',
+		html: '<p>Please click on the link bellow to confirm your email</p><a href="'+url+'" target="_blank">'+url+'</a>'
+	}, (err, info) => {
+		// if(err) console.log(err);
+		// if(info) console.log('Email sent', info);
+	});
+}
+
 exports.register = {
 	validation: [
-		sanitize('username').trim().escape(),
-		sanitize('email').trim().normalizeEmail({
-			gmail_remove_dots: false,
-			gmail_remove_subaddress: false
-		}),
-		sanitize('password').trim(),
 		check('username')
 			.exists().withMessage('missing')
-			.isLength({min: 5}).withMessage('invalid'),
+			.isLength({min: 5}).isAlphanumeric().withMessage('invalid'),
 		check('email')
 			.exists().withMessage('missing')
 			.isEmail().withMessage('invalid'),
@@ -25,38 +43,21 @@ exports.register = {
 			.matches(password()).withMessage('invalid'),
 		check('passwordConfirmation')
 			.exists().withMessage('missing')
-			.custom((value, { req }) => value === req.body.password).withMessage('invalid')
+			.custom((value, { req }) => value === req.body.password).withMessage('invalid'),
+		sanitize('username').trim().escape(),
+		sanitize('email').trim(),
+		sanitize('password').trim()
 	],
-	handler: async (req, res) => {
+	api: async (req, res) => {
 		let errors = validationResult(req);
 		
 		if(errors.isEmpty()) {
-			let model = new User({
-				username: req.body.username,
-				email: req.body.email,
-				password: req.body.password
-			});
-
 			try {
-				let data = await model.save();
-
-				let token = generateToken({
-					_id: data._id,
-					email: data.email
-				});
-
-				let url = 'http://localhost:3000/confirm/'+token;
-
-				Mail.sendMail({
-					from: 'hello@andreanaya.com',
-					to: req.body.email,
-					subject: 'Please confirm your email',
-					text: 'Please click on the link bellow to confirm your email.\n\n'+url+'.',
-					html: '<p>Please click on the link bellow to confirm your email</p><a href="'+url+'" target="_blank">'+url+'</a>'
-				}, (err, info) => {
-					// if(err) console.log(err);
-					// if(info) console.log('Email sent', info);
-				});
+				await register({
+					username: req.body.username,
+					email: req.body.email,
+					password: req.body.password
+				})
 
 				res.status(200).json({
 					success: true,
@@ -79,6 +80,86 @@ exports.register = {
 				})
 			});
 		}
+	},
+	webGET: async (req, res) => {
+		var options = {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/Register.hbs',
+				data: {
+					title: 'User registration'
+				}
+			}
+		};
+		
+		res.render('base.hbs', options);
+	},
+	webPOST: async (req, res) => {
+		let errors = validationResult(req);
+		
+		if(errors.isEmpty()) {
+			try {
+				await register({
+					username: req.body.username,
+					email: req.body.email,
+					password: req.body.password
+				})
+
+				res.status(200).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/RegistrationComplete.hbs',
+						data: {
+							title: 'Registration complete',
+							email: req.body.email
+						}
+					}
+				});
+			} catch(err) {
+				let errorList = {};
+
+				if(err.code === 11000 && err.message.indexOf('username') > -1) {
+					errorList.username = 'Username '+req.body.username+' already exist.';
+				} else if(err.code === 11000 && err.message.indexOf('email') > -1) {
+					errorList.email = 'Email '+req.body.email+' already exist.'
+				} else {
+					errorList.server = 'Server error, please try again.';
+				}
+
+				res.status(400).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Register.hbs',
+						data: {
+							title: 'User registration',
+							fields: {
+								username: req.body.username,
+								email: req.body.email
+							},
+							errors: errorList
+						}
+					}
+				});
+			}
+		} else {
+			res.status(400).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Register.hbs',
+					data: {
+						title: 'User registration',
+						fields: {
+							username: req.body.username,
+							email: req.body.email
+						},
+						errors: errors.array().reduce((list, error) => {
+							list[error.param] = error.msg;
+							return list
+						}, {})
+					}
+				}
+			});
+		}
 	}
 }
 
@@ -87,7 +168,7 @@ exports.confirm = {
 		sanitize('token').trim().escape(),
 		check('token').isHash('sha256')
 	],
-	handler: async function(req, res) {
+	webGET: async function(req, res) {
 		let token = req.params.token;
 
 		try {
@@ -98,12 +179,40 @@ exports.confirm = {
 			if(model.active === false) {
 				model.active = true;
 				await model.save();
-				res.status(200).send('Email confirmed');
+
+				res.status(200).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Email confirmed',
+							message: 'Your account is now active. Please login to view your details.'
+						}
+					}
+				});
 			} else {
-				throw new Error('User active');
+				res.status(200).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Login',
+							message: 'Your account is already active. Please login to view your details.'
+						}
+					}
+				});
 			}
 		} catch(err) {
-			res.status(400).send(err.message);
+			res.status(200).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Register.hbs',
+					data: {
+						title: 'Login',
+						message: 'Your email could not be confirmed, please register again with a different email.'
+					}
+				}
+			});
 		}
 	}
 }
@@ -113,7 +222,7 @@ exports.authenticate = {
 		sanitize('username').trim().escape(),
 		sanitize('password').trim().escape()
 	],
-	handler: function(req, res) {
+	api: function(req, res) {
 		passport.authenticate('local', function(user, info){
 			if(user){
 				if(user.active) {
@@ -144,15 +253,91 @@ exports.authenticate = {
 				});
 			}
 		})(req, res);
+	},
+	webGET: function(req, res) {
+		res.status(200).render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/Login.hbs',
+				data: {
+					title: 'Login'
+				}
+			}
+		});
+	},
+	webPOST: function(req, res) {
+		passport.authenticate('local', function(user, info){
+			if(user){
+				if(user.active) {
+					let token = generateToken({
+						_id: user._id,
+						email: user.email,
+						username: user.username
+					});
+					
+
+					res.status(200)
+					.cookie('token', token, { signed: true, secure: true, httpOnly: true})
+					.render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/Account.hbs',
+							data: {
+								title: 'Account',
+								username: user.username,
+								email: user.email
+							}
+						}
+					});
+				} else {
+					res.status(401).render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/Login.hbs',
+							data: {
+								title: 'Login Error',
+								username: req.body.username,
+								error: 'Email not confirmed'
+							}
+						}
+					});
+				}
+			} else {
+				res.status(401).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Login Error',
+							username: req.body.username,
+							error: 'Invalid username or password'
+						}
+					}
+				});
+			}
+		})(req, res);
+	}
+}
+
+exports.logout = {
+	webGET: function(req, res) {
+		res.status(200)
+		.cookie('token', '', { expires: new Date(0), secure: true, signed: true, httpOnly: true})
+		.render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/Login.hbs',
+				data: {
+					title: 'Login'
+				}
+			}
+		});
 	}
 }
 
 exports.reset = {
 	validation: [
-		sanitize('email').trim().normalizeEmail({
-			gmail_remove_dots: false,
-			gmail_remove_subaddress: false
-		}),
+		sanitize('email').trim(),
 		check('email')
 			.optional()
 			.isEmail().withMessage('invalid'),
@@ -195,7 +380,7 @@ exports.reset = {
 }
 
 exports.account = {
-	handler: async function(req, res) {
+	api: async function(req, res) {
 		if (!req.payload._id) {
 			res.status(401).json({
 				success: false,
@@ -217,30 +402,73 @@ exports.account = {
 				});
 			}
 		}
+	},
+	webGET: async function(req, res) {
+		if (!req.payload || !req.payload._id) {
+			res.status(401).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Login.hbs',
+					data: {
+						title: 'Unauthorized access',
+						message: 'Please login to get access to this account'
+					}
+				}
+			});
+		} else {
+			try {
+				let model = await User.findById(req.payload._id);
+				
+				if(model.created <= req.payload.iat) {
+					res.status(200)
+					.render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/Account.hbs',
+							data: {
+								title: 'Account',
+								username: model.username,
+								email: model.email
+							}
+						}
+					});
+				} else {
+					throw new Error('Token revoked');
+				}
+			} catch(error) {
+				res.status(401).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Session expired',
+							message: 'Please login to get access to this account'
+						}
+					}
+				});
+			}
+		}
 	}
 }
 
 exports.update = {
 	validation: [
 		sanitize('username').trim().escape(),
-		sanitize('email').trim().normalizeEmail({
-			gmail_remove_dots: false,
-			gmail_remove_subaddress: false
-		}),
+		sanitize('email').trim(),
 		sanitize('password').trim(),
 		check('username')
-			.optional()
+			.optional({checkFalsy: true})
 			.isLength({min: 5}).withMessage('invalid'),
 		check('email')
-			.optional()
+			.optional({checkFalsy: true})
 			.isEmail().withMessage('invalid'),
 		check('password')
-			.optional()
+			.optional({checkFalsy: true})
 			.matches(password()).withMessage('invalid'),
 		check('passwordConfirmation')
-			.custom((value, { req }) => req.body.password !== undefined ? value === req.body.password : true).withMessage('invalid')
+			.custom((value, { req }) => req.body.password !== undefined && req.body.password !== '' ? value === req.body.password : true).withMessage('invalid')
 	],
-	handler: async function(req, res) {
+	api: async function(req, res) {
 		if (!req.payload._id) {
 			res.status(401).json({
 				success: false,
@@ -254,15 +482,22 @@ exports.update = {
 					let model = await User.findById(req.payload._id);
 
 					if(model.created <= req.payload.iat) {
-						if(req.body.username) model.username = req.body.username;
-						if(req.body.email) model.email = req.body.email;
-						if(req.body.password) model.password = req.body.password;
+						if(req.body.username && req.body.username != '') model.username = req.body.username;
+						if(req.body.email && req.body.username != '') model.email = req.body.email;
+						if(req.body.password && req.body.username != '') model.password = req.body.password;
 
 						let data = await model.save();
 
+						let token = generateToken({
+							_id: user._id,
+							email: user.email,
+							username: user.username
+						});
+
 						res.status(200).json({
 							success: true,
-							data: data
+							data: data,
+							token: token
 						});
 					} else {
 						throw new Error('Token revoked');
@@ -282,6 +517,112 @@ exports.update = {
 							message: error.msg
 						}
 					})
+				});
+			}
+		}
+	},
+	webGET: async function(req, res) {
+		if (!req.payload || !req.payload._id) {
+			res.status(401).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Login.hbs',
+					data: {
+						title: 'Unauthorized access',
+						message: 'Please login to get access to this account'
+					}
+				}
+			});
+		} else {
+			try {
+				let model = await User.findById(req.payload._id);
+				
+				if(model.created <= req.payload.iat) {
+					res.status(200)
+					.render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/UpdateDetails.hbs',
+							data: {
+								title: 'Account',
+								username: model.username,
+								email: model.email
+							}
+						}
+					});
+				} else {
+					throw new Error('Token revoked');
+				}
+			} catch(error) {
+				res.status(401).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Session expired',
+							message: 'Please login to get access to this account'
+						}
+					}
+				});
+			}
+		}
+	},
+	webPOST: async function(req, res) {
+		if (!req.payload._id) {
+			res.status(401).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Login.hbs',
+					data: {
+						title: 'Session expired',
+						message: 'Please login to get access to this account'
+					}
+				}
+			});
+		} else {
+			try {
+				let model = await User.findById(req.payload._id);
+
+				if(model.created <= req.payload.iat) {
+					if(req.body.username) model.username = req.body.username;
+					if(req.body.email) model.email = req.body.email;
+					if(req.body.password) model.password = req.body.password;
+
+					let data = await model.save();
+
+					let token = generateToken({
+						_id: data._id,
+						email: data.email,
+						username: data.username
+					})
+
+					res.status(200)
+					.cookie('token', token, { signed: true, secure: true, httpOnly: true})
+					.render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/Account.hbs',
+							data: {
+								title: 'Account',
+								message: 'Your details were updated.',
+								username: model.username,
+								email: model.email
+							}
+						}
+					});
+				} else {
+					throw new Error('Token revoked');
+				}
+			} catch(error) {
+				res.status(401).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Session expired',
+							message: 'Please login to get access to this account'
+						}
+					}
 				});
 			}
 		}
@@ -326,6 +667,7 @@ exports.error = function (err, req, res, next) {
 			info: { message: 'Unauthorized access' }
 		});
 	} else {
+		console.log(err)
 		res.status(500);
 		res.json({
 			success: false,
