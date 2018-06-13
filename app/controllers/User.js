@@ -338,11 +338,9 @@ exports.logout = {
 exports.reset = {
 	validation: [
 		sanitize('email').trim(),
-		check('email')
-			.optional()
-			.isEmail().withMessage('invalid'),
+		check('email').isEmail().withMessage('invalid'),
 	],
-	handler: async function(req, res) {
+	api: async function(req, res) {
 		try {
 			let model = await User.findOne({email: req.body.email});
 
@@ -374,6 +372,87 @@ exports.reset = {
 			res.status(401).json({
 				success: false,
 				info: {message: error.message}
+			});
+		}
+	},
+	webGET: function(req, res) {
+		res.status(200).render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/ResetPassword.hbs',
+				data: {
+					title: 'Reset you password',
+					message: 'Please add your registered email to reset your password'
+				}
+			}
+		});
+	},
+	webPOST: async function(req, res) {
+		let errors = validationResult(req);
+
+		if(errors.isEmpty()) {
+			try {
+				let model = await User.findOne({email: req.body.email});
+
+				if(model.active) {
+					let password = Math.random().toString(36).slice(-8);
+
+					model.password = password;
+
+					await model.save();
+
+					Mail.sendMail({
+						from: 'hello@andreanaya.com',
+						to: req.body.email,
+						subject: 'Password reset',
+						html: '<p>Your new password is: '+password+'</p>'
+					}, (err, info) => {
+						// if(err) console.log(err);
+						// if(info) console.log('Email sent');
+					});
+
+					res.status(200)
+					.render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/ResetPassword.hbs',
+							data: {
+								title: 'Reset you password',
+								message: 'An email was sent with your new password.'
+							}
+						}
+					});
+				} else {
+					throw new Error('User not active')
+				}
+			} catch(error) {
+				res.status(401)
+				.render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/ResetPassword.hbs',
+						data: {
+							title: 'Reset you password',
+							message: 'An email was sent with your new password.',
+							error: 'Email not found'
+						}
+					}
+				});
+			}
+		} else {
+			res.status(400).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/ResetPassword.hbs',
+					data: {
+						title: 'Reset you password',
+						message: 'Please add your registered email to reset your password',
+						errors: errors.array().reduce((list, error) => {
+							list[error.param] = error.msg;
+							return list
+						}, {})
+					}
+				}
 			});
 		}
 	}
@@ -453,9 +532,6 @@ exports.account = {
 
 exports.update = {
 	validation: [
-		sanitize('username').trim().escape(),
-		sanitize('email').trim(),
-		sanitize('password').trim(),
 		check('username')
 			.optional({checkFalsy: true})
 			.isLength({min: 5}).withMessage('invalid'),
@@ -483,8 +559,8 @@ exports.update = {
 
 					if(model.created <= req.payload.iat) {
 						if(req.body.username && req.body.username != '') model.username = req.body.username;
-						if(req.body.email && req.body.username != '') model.email = req.body.email;
-						if(req.body.password && req.body.username != '') model.password = req.body.password;
+						if(req.body.email && req.body.email != '') model.email = req.body.email;
+						if(req.body.password && req.body.password != '') model.password = req.body.password;
 
 						let data = await model.save();
 
@@ -580,47 +656,69 @@ exports.update = {
 				}
 			});
 		} else {
-			try {
-				let model = await User.findById(req.payload._id);
+			let errors = validationResult(req);
 
-				if(model.created <= req.payload.iat) {
-					if(req.body.username) model.username = req.body.username;
-					if(req.body.email) model.email = req.body.email;
-					if(req.body.password) model.password = req.body.password;
+			if(errors.isEmpty()) {
+				try {
+					let model = await User.findById(req.payload._id);
 
-					let data = await model.save();
+					if(model.created <= req.payload.iat) {
+						if(req.body.username && req.body.username != '') model.username = req.body.username;
+						if(req.body.email && req.body.email != '') model.email = req.body.email;
+						if(req.body.password && req.body.password != '') model.password = req.body.password;
+						
+						let data = await model.save();
 
-					let token = generateToken({
-						_id: data._id,
-						email: data.email,
-						username: data.username
-					})
+						let token = generateToken({
+							_id: data._id,
+							email: data.email,
+							username: data.username
+						})
 
-					res.status(200)
-					.cookie('token', token, { signed: true, secure: true, httpOnly: true})
-					.render('base.hbs', {
+						res.status(200)
+						.cookie('token', token, { signed: true, secure: true, httpOnly: true})
+						.render('base.hbs', {
+							model: {
+								isDev: process.env.NODE_ENV === 'dev',
+								template: 'layouts/Account.hbs',
+								data: {
+									title: 'Account',
+									message: 'Your details were updated.',
+									username: model.username,
+									email: model.email
+								}
+							}
+						});
+					} else {
+						throw new Error('Token revoked');
+					}
+				} catch(error) {
+					res.status(401).render('base.hbs', {
 						model: {
 							isDev: process.env.NODE_ENV === 'dev',
-							template: 'layouts/Account.hbs',
+							template: 'layouts/Login.hbs',
 							data: {
-								title: 'Account',
-								message: 'Your details were updated.',
-								username: model.username,
-								email: model.email
+								title: 'Session expired',
+								message: 'Please login to get access to this account'
 							}
 						}
 					});
-				} else {
-					throw new Error('Token revoked');
 				}
-			} catch(error) {
-				res.status(401).render('base.hbs', {
+			} else {
+				res.status(400).render('base.hbs', {
 					model: {
 						isDev: process.env.NODE_ENV === 'dev',
-						template: 'layouts/Login.hbs',
+						template: 'layouts/UpdateDetails.hbs',
 						data: {
-							title: 'Session expired',
-							message: 'Please login to get access to this account'
+							title: 'Account',
+							fields: {
+								username: req.body.username,
+								email: req.body.email
+							},
+							errors: errors.array().reduce((list, error) => {
+								list[error.param] = error.msg;
+								return list
+							}, {})
 						}
 					}
 				});
@@ -630,7 +728,7 @@ exports.update = {
 }
 
 exports.delete = {
-	handler: async function(req, res) {
+	api: async function(req, res) {
 		if (!req.payload._id) {
 			res.status(401).json({
 				success: false,
@@ -657,6 +755,52 @@ exports.delete = {
 				});
 			}
 		}
+	},
+	webPOST: async function(req, res) {
+		if (!req.payload._id) {
+			res.status(401).render('base.hbs', {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Login.hbs',
+					data: {
+						title: 'Session expired',
+						message: 'Please login to get access to this account'
+					}
+				}
+			});
+		} else {
+			try {
+				let data = await User.findById(req.payload._id);
+				
+				if(data.created <= req.payload.iat) {
+					await data.remove();
+
+					res.status(200).render('base.hbs', {
+						model: {
+							isDev: process.env.NODE_ENV === 'dev',
+							template: 'layouts/Register.hbs',
+							data: {
+								title: 'User registration',
+								confirm: 'Your account was removed.'
+							}
+						}
+					});
+				} else {
+					throw new Error('Token revoked');
+				}
+			} catch(error) {
+				res.status(400).render('base.hbs', {
+					model: {
+						isDev: process.env.NODE_ENV === 'dev',
+						template: 'layouts/Login.hbs',
+						data: {
+							title: 'Session expired',
+							message: 'Please login to get access to this account'
+						}
+					}
+				});
+			}
+		}
 	}
 }
 
@@ -667,7 +811,6 @@ exports.error = function (err, req, res, next) {
 			info: { message: 'Unauthorized access' }
 		});
 	} else {
-		console.log(err)
 		res.status(500);
 		res.json({
 			success: false,

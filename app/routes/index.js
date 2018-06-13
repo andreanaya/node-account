@@ -51,12 +51,16 @@ module.exports = function(app) {
 
 	app.route('/update')
 		.get(auth, User.update.webGET)
-		.post(auth, User.update.validation, User.update.webPOST)
+		.post(lowRateLimiter, auth, User.update.validation, User.update.webPOST)
 
 
-	// app.route('/password')
-	// 	.get(lowRateLimiter, User.authenticate.validation, User.authenticate.webGET)
-	// 	.post(lowRateLimiter, User.authenticate.validation, User.authenticate.webPOST);
+	app.route('/resetpassword')
+		.get(User.reset.webGET)
+		.post(lowRateLimiter, User.reset.validation, User.reset.webPOST);
+
+
+	app.route('/delete')
+		.post(lowRateLimiter, auth, User.delete.webPOST);
 
 	//API ROUTES
 
@@ -67,12 +71,12 @@ module.exports = function(app) {
 		.post(lowRateLimiter, User.authenticate.validation, User.authenticate.api);
 
 	app.route('/api/resetpassword')
-		.post(lowRateLimiter, User.reset.validation, User.reset.handler);
+		.post(lowRateLimiter, User.reset.validation, User.reset.api);
 
 	app.route('/api/account')
 		.get(auth, User.account.api)
 		.put(auth, User.update.validation, User.update.api)
-		.delete(auth, User.delete.handler);
+		.delete(auth, User.delete.api);
 
 	app.use(User.error);
 };
