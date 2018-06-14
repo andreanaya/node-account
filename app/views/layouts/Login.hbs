@@ -6,16 +6,19 @@
 	<p>
 		<label for="username">Username</label><br/>
 		<input type="text" id="username" name="username" value="{{username}}"><br/>
+		{{#error.username}}<p style="color: red;">{{this}}</p>{{/error.username}}
 	</p>
 
 
 	<p>
 		<label for="password">Password</label><br/>
 		<input type="password" id="password" name="password" autocomplete><br/>
+		{{#error.password}}<p style="color: red;">{{this}}</p>{{/error.password}}
 	</p>
 	
 	<button type="submit">Login</button>
-	{{#error}}<p style="color: red;">{{this}}</p>{{/error}}
+	{{#error.authentication}}<p style="color: red;">{{this}}</p>{{/error.authentication}}
+	{{#error.server}}<p style="color: red;">{{this}}</p>{{/error.server}}
 </form>
 
 <p><a href="/resetpassword">Forgot your password?</a></p>

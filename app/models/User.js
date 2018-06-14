@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
-const { generateToken } = require('../utils/Token');
 const Schema = mongoose.Schema;
 
 const SALT_FACTOR = 10;
