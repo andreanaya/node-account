@@ -29,13 +29,22 @@ exports.user = {
 
 					next();
 				} else {
-					next({authentication: 'Token revoked'});
+					next({
+						type: 'authentication',
+						message: 'Token revoked'
+					});
 				}
 			} else {
-				next({server: 'User not found'});
+				next({
+					type: 'server',
+					message: 'User not found'
+				});
 			}
 		} catch(error) {
-			next({server: 'Server error'});
+			next({
+				type: 'server',
+				message: 'Server error'
+			});
 		}
 	},
 	update: async (req, res, next) => {
@@ -57,15 +66,21 @@ exports.user = {
 
 				next()
 			} catch(error) {
-				next({server: 'Server error'});
+				next({
+					type: 'server',
+					message: 'Server error'
+				});
 			}
 		} else {
-			next(errors.array().map((error) => {
-				return {
-					field: error.param,
-					message: error.msg
-				}
-			}))
+			next({
+				type: 'validation',
+				errors: errors.array().map((error) => {
+					return {
+						field: error.param,
+						message: error.msg
+					}
+				})
+			})
 		}
 	},
 	delete: async (req, res, next) => {
@@ -74,7 +89,10 @@ exports.user = {
 
 			next();
 		} catch(error) {
-			next({server: 'Server error'});
+			next({
+				type: 'server',
+				message: 'Server error'
+			});
 		}
 	}
 }

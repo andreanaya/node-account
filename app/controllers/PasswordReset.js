@@ -34,10 +34,16 @@ exports.reset = async (req, res, next) => {
 
 				next();
 			} else {
-				next({server: 'User not active'})
+				next({
+					type: 'server',
+					message: 'User not active'
+				})
 			}
 		} catch(error) {
-			next({server: 'Email not found'})
+			next({
+				type: 'server',
+				message: 'Email not found'
+			})
 		}
 	} else {
 		next(errors.array().reduce((list, error) => {

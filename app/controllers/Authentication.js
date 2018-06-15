@@ -1,91 +1,148 @@
+const jwt = require('express-jwt');
+const { check, validationResult } = require('express-validator/check');
 const { sanitize } = require('express-validator/filter');
 const passport = require('passport');
 const { generateToken } = require('../utils/Token');
 
-exports.validate = [
+exports.authenticate = [
 	sanitize('username').trim().escape(),
-	sanitize('password').trim().escape()
+	sanitize('password').trim().escape(),
+	(req, res, next) => {
+		passport.authenticate('local', function(user, info){
+			if(user){
+				if(user.active) {
+					req.token = generateToken({
+						_id: user._id,
+						email: user.email,
+						username: user.username
+					});
+					
+					next();
+				} else {
+					next({
+						type: 'authentication',
+						message: 'Email not confirmed'
+					});
+				}
+			} else {
+				next({
+					type: 'authentication',
+					message: 'Invalid username or password'
+				});
+			}
+		})(req, res);
+	}
 ]
 
-exports.authenticate = (req, res, next) => {
-	passport.authenticate('local', function(user, info){
-		if(user){
-			if(user.active) {
-				req.token = generateToken({
-					_id: user._id,
-					email: user.email,
-					username: user.username
+exports.authorize = [
+	jwt({
+		secret: process.env.TOKEN_SECRET,
+		userProperty: 'payload',
+		credentialsRequired: false,
+		getToken: (req) => {
+			if (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Bearer') {
+				return req.headers.authorization.split(' ')[1];
+			} else if (req.signedCookies && req.signedCookies.token) {
+				return req.signedCookies.token;
+			}
+			return null;
+		}
+	}),
+	(err, req, res, next) => {
+		if (err) {
+			if(err.name === 'UnauthorizedError') {
+				next({
+					type: 'authentication',
+					message: 'Invalid token'
 				});
-				
-				next();
-			} else {
-				next({authentication: 'Email not confirmed'});
 			}
 		} else {
-			next({authentication: 'Invalid username or password'})
+			if (!req.payload || !req.payload._id) {
+				next({
+					type: 'authentication',
+					message: 'Unauthorized access'
+				});
+			} else {
+				next();
+			}
 		}
-	})(req, res);
-}
-
-exports.api = {
-	post: (req, res) => {
-		res.status(200).json({
-			success: true,
-			token: req.token
-		});
 	},
-	error: (err, req, res, next) => {
-		res.status(401).json({
-			success: false,
-			error: err
-		});
-	}
-}
+	async (req, res, next) => {
+		try {
+			let user = await User.findById(req.payload._id);
+			
+			if(user) {
+				if(user.created <= req.payload.iat) {
+					req.user = user;
 
-exports.web = {
-	get: (req, res) => {
-		res.status(200).render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Login.hbs',
-				data: {
-					title: 'Login'
+					next();
+				} else {
+					next({
+						type: 'authentication',
+						message: 'Token revoked'
+					});
 				}
+			} else {
+				next({
+					type: 'server',
+					message: 'User not found'
+				});
 			}
-		});
-	},
-	post: (req, res) => {
-		res.status(200)
-		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
-		.redirect('/account');
-	},
-	error: (err, req, res, next) => {
-		res.status(401).render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Login.hbs',
-				data: {
-					title: 'Login Error',
-					username: req.body.username,
-					error: err
-				}
-			}
-		});
+		} catch(error) {
+			next({
+				type: 'server',
+				message: 'Server error'
+			});
+		}
 	}
-}
+];
 
-exports.logout = {
-	get: (req, res) => {
-		res.status(200)
-		.cookie('token', '', { expires: new Date(0), secure: true, signed: true, httpOnly: true})
-		.render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Login.hbs',
-				data: {
-					title: 'Login'
+exports.reset = [
+	sanitize('email').trim(),
+	check('email').isEmail().withMessage('invalid'),
+
+	async (req, res, next) => {
+		let errors = validationResult(req);
+
+		if(errors.isEmpty()) {
+			try {
+				let model = await User.findOne({email: req.body.email});
+
+				if(model.active) {
+					let password = Math.random().toString(36).slice(-8);
+
+					model.password = password;
+
+					await model.save();
+
+					Mail.sendMail({
+						from: 'hello@andreanaya.com',
+						to: model.email,
+						subject: 'Password reset',
+						html: '<p>Your new password is: '+password+'</p>'
+					}, (err, info) => {
+						// if(err) console.log(err);
+						// if(info) console.log('Email sent');
+					});
+
+					next();
+				} else {
+					next({
+						type: 'server',
+						message: 'User not active'
+					})
 				}
+			} catch(error) {
+				next({
+					type: 'server',
+					message: 'Email not found'
+				})
 			}
-		});
+		} else {
+			next(errors.array().reduce((list, error) => {
+				list[error.param] = error.msg;
+				return list
+			}, {}))
+		}
 	}
-}
+]

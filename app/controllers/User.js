@@ -5,28 +5,26 @@ const { generateToken } = require('../utils/Token');
 const { password } = require('../utils/RegExp');
 const Mail = require('../utils/Mail');
 
-exports.validate = [
+exports.create = [
 	check('username')
 		.exists().withMessage('missing')
 		.isLength({min: 5}).isAlphanumeric().withMessage('invalid'),
+	sanitize('username').trim().escape(),
+
 	check('email')
 		.exists().withMessage('missing')
 		.isEmail().withMessage('invalid'),
+	sanitize('email').trim(),
+	
 	check('password')
 		.exists().withMessage('missing')
 		.matches(password()).withMessage('invalid'),
 	check('passwordConfirmation')
 		.exists().withMessage('missing')
 		.custom((value, { req }) => value === req.body.password).withMessage('invalid'),
-	sanitize('username').trim().escape(),
-	sanitize('email').trim(),
-	sanitize('password').trim()
-];
+	sanitize('password').trim(),
 
-exports.register = async (req, res, next) => {
-	let errors = validationResult(req);
-	
-	if(errors.isEmpty()) {
+	async (req, res, next) => {
 		try {
 			let model = new User({
 				username: req.body.username,
@@ -74,72 +72,57 @@ exports.register = async (req, res, next) => {
 
 			next(error);
 		}
-	} else {
+	}
+];
+
+exports.update = [
+	check('username')
+		.optional({checkFalsy: true})
+		.isLength({min: 5}).withMessage('invalid'),
+	
+	check('email')
+		.optional({checkFalsy: true})
+		.isEmail().withMessage('invalid'),
+	
+	check('password')
+		.optional({checkFalsy: true})
+		.matches(password()).withMessage('invalid'),
+	check('passwordConfirmation')
+		.custom((value, { req }) => req.body.password !== undefined && req.body.password !== '' ? value === req.body.password : true).withMessage('invalid'),
+
+	async (req, res, next) => {
+		try {
+			if(req.body.username && req.body.username != '') req.user.username = req.body.username;
+			if(req.body.email && req.body.email != '') req.user.email = req.body.email;
+			if(req.body.password && req.body.password != '') req.user.password = req.body.password;
+
+			await req.user.save();
+
+			req.token = generateToken({
+				_id: req.user._id,
+				username: req.user.username,
+				email: req.user.email
+			});
+
+			next()
+		} catch(error) {
+			next({
+				type: 'server',
+				message: 'Server error'
+			});
+		}
+	}
+];
+
+exports.delete = async (req, res, next) => {
+	try {
+		await req.user.remove();
+
+		next();
+	} catch(error) {
 		next({
-			type: 'validation',
-			errors: errors.array().map((error) => {
-				return {
-					field: error.param,
-					message: error.msg
-				}
-			})
-		});
-	}
-}
-
-exports.api = {
-	post: (req, res, next) => {
-		res.status(200).json({
-			success: true,
-			data: req.data
-		});
-	},
-	error: (err, req, res, next) => {
-		res.status(400).json({
-			success: false,
-			error: err
-		});
-	}
-}
-
-exports.web = {
-	form: async (req, res) => {
-		var options = {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Register.hbs',
-				data: {
-					title: 'User registration'
-				}
-			}
-		};
-		
-		res.render('base.hbs', options);
-	},
-	complete: async (req, res, next) => {
-		res.status(200).render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/RegistrationComplete.hbs',
-				data: req.data
-			}
-		});
-	},
-	error: (err, req, res, next) => {
-		console.log(err)
-		res.status(400).render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Register.hbs',
-				data: {
-					title: 'User registration',
-					fields: {
-						username: req.body.username,
-						email: req.body.email
-					},
-					errors: err
-				}
-			}
+			type: 'server',
+			message: 'Server error'
 		});
 	}
 }
