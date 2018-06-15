@@ -1,29 +1,118 @@
+const jwt = require('express-jwt');
+const validator = require('validator');
+const passport = require('passport');
 const User = require('../models/User');
-const { check, validationResult } = require('express-validator/check');
-const { sanitize } = require('express-validator/filter');
-const { generateToken } = require('../utils/Token');
-const { password } = require('../utils/RegExp');
+const { generateToken, verify } = require('../utils/Token');
 const Mail = require('../utils/Mail');
-const {notification} = require('../utils/QueryNotification');
+
+exports.authorize = [
+	jwt({
+		secret: process.env.TOKEN_SECRET,
+		userProperty: 'payload',
+		credentialsRequired: false,
+		getToken: (req) => {
+			if (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Bearer') {
+				return req.headers.authorization.split(' ')[1];
+			} else if (req.signedCookies && req.signedCookies.token) {
+				return req.signedCookies.token;
+			}
+			return null;
+		}
+	}),
+	(err, req, res, next) => {
+		if (err) {
+			if(err.name === 'UnauthorizedError') {
+				next({
+					type: 'authentication',
+					message: 'Invalid token'
+				});
+			}
+		} else {
+			if (!req.payload || !req.payload._id) {
+				next({
+					type: 'authentication',
+					message: 'Unauthorized access'
+				});
+			} else {
+				next();
+			}
+		}
+	},
+	async (req, res, next) => {
+		try {
+			let user = await User.findById(req.payload._id);
+			
+			if(user) {
+				if(user.created <= req.payload.iat) {
+					req.user = user;
+
+					next();
+				} else {
+					next({
+						type: 'authentication',
+						message: 'Token revoked'
+					});
+				}
+			} else {
+				next({
+					type: 'server',
+					message: 'User not found'
+				});
+			}
+		} catch(error) {
+			next({
+				type: 'server',
+				message: 'Server error'
+			});
+		}
+	}
+];
 
 exports.create = [
-	check('username')
-		.exists().withMessage('missing')
-		.isLength({min: 5}).isAlphanumeric().withMessage('invalid'),
-	sanitize('username').trim().escape(),
+	(req, res, next) => {
+		let errors = {};
 
-	check('email')
-		.exists().withMessage('missing')
-		.isEmail().withMessage('invalid'),
-	sanitize('email').trim(),
-	
-	check('password')
-		.exists().withMessage('missing')
-		.matches(password()).withMessage('invalid'),
-	check('passwordConfirmation')
-		.exists().withMessage('missing')
-		.custom((value, { req }) => value === req.body.password).withMessage('invalid'),
-	sanitize('password').trim(),
+		let username = validator.trim(req.body.username || '');
+		let email = validator.trim(req.body.email || '');
+		let password = validator.trim(req.body.password || '');
+		let passwordConfirmation = validator.trim(req.body.passwordConfirmation || '');
+
+		if(validator.isEmpty(username)) {
+			errors.username = 'missing';
+		} else if(!validator.isLength(username, {min: 5}) || !validator.isAlphanumeric(username) ) {
+			errors.username = 'invalid';
+		}
+
+		if(validator.isEmpty(email)) {
+			errors.email = 'missing';
+		} else if(!validator.isEmail(email) ) {
+			errors.email = 'invalid'
+		}
+
+		if(validator.isEmpty(password)) {
+			errors.password = 'missing';
+		} else if( !validator.matches(password, /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#\$%\^&\*])(?=.{8,})/) ) {
+			errors.password = 'invalid'
+		} else if(validator.isEmpty(passwordConfirmation)) {
+			errors.passwordConfirmation = 'missing';
+		} else if( password !== passwordConfirmation ) {
+			errors.passwordConfirmation = 'invalid';
+		}
+
+
+		if(Object.keys(errors).length === 0) {
+			req.body.username = username;
+			req.body.email = email;
+			req.body.password = password;
+
+			next();
+		} else {
+			next({
+				type: 'validation',
+				errors: errors
+			});
+		}
+	},
 
 	async (req, res, next) => {
 		try {
@@ -36,8 +125,8 @@ exports.create = [
 			let user = await model.save();
 
 			let token = generateToken({
-				_id: data._id,
-				email: data.email
+				_id: user._id,
+				email: user.email
 			});
 
 			let url = 'https://localhost:3000/confirm/'+token;
@@ -73,26 +162,152 @@ exports.create = [
 	}
 ];
 
+exports.confirm = [
+	async (req, res, next) => {
+		let token = req.params.token;
+
+		try {
+			let payload = verify(token);
+
+			let model = await User.findById(payload._id);
+
+			if(model.active === false) {
+				model.active = true;
+				await model.save();
+
+				next();
+			} else {
+				next({
+					type: 'server',
+					message: 'Username '+req.body.username+' already active.'
+				});
+			}
+		} catch(err) {
+			next({
+				type: 'server',
+				message: 'server error'
+			});
+		}
+	}
+];
+
+exports.login = [
+	(req, res, next) => {
+		let username = validator.trim(req.body.username || '');
+		let password = validator.trim(req.body.password || '');
+
+		req.body.username = username;
+		req.body.password = password;
+
+		passport.authenticate('local', function(user, info){
+			if(user){
+				if(user.active) {
+					req.token = generateToken({
+						_id: user._id,
+						email: user.email,
+						username: user.username
+					});
+					
+					next();
+				} else {
+					next({
+						type: 'authentication',
+						message: 'Email not confirmed'
+					});
+				}
+			} else {
+				next({
+					type: 'authentication',
+					message: 'Invalid username or password'
+				});
+			}
+		})(req, res);
+	}
+];
+
+exports.recover = [
+	async (req, res, next) => {
+		try {
+			let model = await User.findOne({email: req.body.email});
+
+			if(model.active) {
+				let password = Math.random().toString(36).slice(-8);
+
+				model.password = password;
+
+				await model.save();
+
+				Mail.sendMail({
+					from: 'hello@andreanaya.com',
+					to: model.email,
+					subject: 'Password reset',
+					html: '<p>Your new password is: '+password+'</p>'
+				}, (err, info) => {
+					// if(err) console.log(err);
+					// if(info) console.log('Email sent');
+				});
+
+				next();
+			} else {
+				next({
+					type: 'server',
+					message: 'User not active'
+				})
+			}
+		} catch(error) {
+			console.log(error)
+			next({
+				type: 'server',
+				message: 'Email not found'
+			})
+		}
+	}
+];
+
 exports.update = [
-	check('username')
-		.optional({checkFalsy: true})
-		.isLength({min: 5}).withMessage('invalid'),
-	
-	check('email')
-		.optional({checkFalsy: true})
-		.isEmail().withMessage('invalid'),
-	
-	check('password')
-		.optional({checkFalsy: true})
-		.matches(password()).withMessage('invalid'),
-	check('passwordConfirmation')
-		.custom((value, { req }) => req.body.password !== undefined && req.body.password !== '' ? value === req.body.password : true).withMessage('invalid'),
+	(req, res, next) => {
+		let errors = {};
+
+		let username = validator.trim(req.body.username || '');
+		let email = validator.trim(req.body.email || '');
+		let password = validator.trim(req.body.password || '');
+		let passwordConfirmation = validator.trim(req.body.passwordConfirmation || '');
+
+		if(!validator.isEmpty(username) && (!validator.isLength(username, {min: 5}) || !validator.isAlphanumeric(username)) ) {
+			errors.username = 'invalid';
+		}
+
+		if(!validator.isEmpty(email) && !validator.isEmail(email) ) {
+			errors.email = 'invalid'
+		}
+
+		if(!validator.isEmpty(password) && !validator.matches(password, /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#\$%\^&\*])(?=.{8,})/) ) {
+			errors.password = 'invalid'
+		}
+
+		if( !validator.isEmpty(password) && password !== passwordConfirmation ) {
+			errors.passwordConfirmation = 'invalid';
+		}
+
+		if(Object.keys(errors).length === 0) {
+			req.body.username = username;
+			req.body.email = email;
+			req.body.password = password;
+
+			next();
+		} else {
+			next({
+				type: 'validation',
+				errors: errors
+			});
+		}
+	},
 
 	async (req, res, next) => {
 		try {
-			if(req.body.username && req.body.username != '') req.user.username = req.body.username;
-			if(req.body.email && req.body.email != '') req.user.email = req.body.email;
-			if(req.body.password && req.body.password != '') req.user.password = req.body.password;
+			if(req.body.username != '') req.user.username = req.body.username;
+			if(req.body.email != '') req.user.email = req.body.email;
+			if(req.body.password != '') req.user.password = req.body.password;
 
 			await req.user.save();
 
@@ -122,126 +337,5 @@ exports.delete = async (req, res, next) => {
 			type: 'server',
 			message: 'Server error'
 		});
-	}
-}
-
-exports.api = 	{
-	register: (req, res, next) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				status: 'Pending confimation',
-				email: req.user.email
-			}
-		});
-	},
-	account: (req, res, next) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				username: req.user.username,
-				email: req.user.email
-			}
-		});
-	},
-	update: (req, res) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				username: req.user.username,
-				email: req.user.email
-			},
-			token: req.token
-		});
-	},
-	delete: (req, res) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				status: 'User deleted',
-				email: req.user.username
-			}
-		});
-	},
-	error: (err, req, res, next) => {
-		res.status(400).json({
-			success: false,
-			error: err
-		});
-	}
-}
-
-exports.view = {
-	register: (req, res) => {
-		var options = {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Register.hbs',
-				data: {
-					title: 'User registration'
-				}
-			}
-		};
-		
-		res.render('base.hbs', options);
-	},
-	registrationComplete: (req, res, next) => {
-		res.status(200)
-		.redirect('/login'+notification('Aler', 'Please confirm your email address to complete your registration.'));
-	},
-	account: (req, res) => {
-		res.status(200)
-		.render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Account.hbs',
-				data: {
-					title: 'Account',
-					username: req.user.username,
-					email: req.user.email
-				},
-				notification: req.notification
-			}
-		});
-	},
-	update: (req, res) => {
-		res.status(200)
-		.render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/UpdateDetails.hbs',
-				data: {
-					title: 'Account',
-					username: req.user.username,
-					email: req.user.email
-				}
-			}
-		});
-	},
-	updateComplete: (req, res) => {
-		res.status(200)
-		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
-		.redirect('/account?'+notification('status', 'Account updated'));
-	},
-	delete: (req, res) => {
-		res.status(200)
-		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
-		.redirect('/register?'+notification('confirmation', 'Account deleted'));
-	},
-	error: (err, req, res, next) => {
-		res.status(400)
-		.redirect('/login?'+notification('error', 'Internal error'));
-
-		// res.status(400).render('base.hbs', {
-		// 	model: {
-		// 		isDev: process.env.NODE_ENV === 'dev',
-		// 		template: 'layouts/ResetPassword.hbs',
-		// 		data: {
-		// 			title: 'Reset you password',
-		// 			message: 'Please add your registered email to reset your password',
-		// 			errors: err
-		// 		}
-		// 	}
-		// });
 	}
 }

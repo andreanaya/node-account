@@ -1,141 +1,109 @@
-const User = require('../models/User');
-const { check, validationResult } = require('express-validator/check');
-const { generateToken } = require('../utils/Token');
-const { sanitize } = require('express-validator/filter');
-const { password } = require('../utils/RegExp');
+const {notification} = require('../utils/QueryNotification');
 
-exports.validate = [
-	check('username')
-		.optional({checkFalsy: true})
-		.isLength({min: 5}).withMessage('invalid'),
-	check('email')
-		.optional({checkFalsy: true})
-		.isEmail().withMessage('invalid'),
-	check('password')
-		.optional({checkFalsy: true})
-		.matches(password()).withMessage('invalid'),
-	check('passwordConfirmation')
-		.custom((value, { req }) => req.body.password !== undefined && req.body.password !== '' ? value === req.body.password : true).withMessage('invalid')
-];
-
-exports.user = {
-	get: async (req, res, next) => {
-		try {
-			let user = await User.findById(req.payload._id);
-			
-			if(user) {
-				if(user.created <= req.payload.iat) {
-					req.user = user;
-
-					next();
-				} else {
-					next({
-						type: 'authentication',
-						message: 'Token revoked'
-					});
-				}
-			} else {
-				next({
-					type: 'server',
-					message: 'User not found'
-				});
-			}
-		} catch(error) {
-			next({
-				type: 'server',
-				message: 'Server error'
-			});
-		}
-	},
-	update: async (req, res, next) => {
-		let errors = validationResult(req);
-
-		if(errors.isEmpty()) {
-			try {
-				if(req.body.username && req.body.username != '') req.user.username = req.body.username;
-				if(req.body.email && req.body.email != '') req.user.email = req.body.email;
-				if(req.body.password && req.body.password != '') req.user.password = req.body.password;
-
-				await req.user.save();
-
-				req.token = generateToken({
-					_id: req.user._id,
-					username: req.user.username,
-					email: req.user.email
-				});
-
-				next()
-			} catch(error) {
-				next({
-					type: 'server',
-					message: 'Server error'
-				});
-			}
-		} else {
-			next({
-				type: 'validation',
-				errors: errors.array().map((error) => {
-					return {
-						field: error.param,
-						message: error.msg
-					}
-				})
-			})
-		}
-	},
-	delete: async (req, res, next) => {
-		try {
-			await req.user.remove();
-
-			next();
-		} catch(error) {
-			next({
-				type: 'server',
-				message: 'Server error'
-			});
-		}
-	}
-}
-
-exports.api = {
+exports.create = {
 	get: (req, res) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				username: req.user.username,
-				email: req.user.email
+		var options = {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/Register.hbs',
+				data: {
+					title: 'User registration'
+				},
+				notification: req.notification
 			}
-		});
+		};
+		
+		res.render('base.hbs', options);
 	},
-	put: (req, res) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				username: req.user.username,
-				email: req.user.email
-			},
-			token: req.token
-		});
-	},
-	delete: (req, res) => {
-		res.status(200).json({
-			success: true,
-			data: {
-				username: req.user.username,
-				email: req.user.email
+	post: [
+		(req, res, next) => {
+			res.status(200)
+			.redirect('/login?'+notification('alert', 'Please confirm your email address to complete your registration.'));
+		},
+		(err, req, res, next) => {
+			var options = {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/Register.hbs',
+					data: {
+						title: 'User registration',
+						fields: {
+							username: req.body.username,
+							email: req.body.email
+						}
+					}
+				}
 			}
-		});
-	},
-	error: (err, req, res, next) => {
-		console.log(err)
-		res.status(401).json({
-			success: false,
-			error: err
-		});
+			if(err.type == 'validation') {
+				options.model.data.errors = err.errors;
+			} else if(err.type == 'server') {
+				options.model.data.errors = err.message;
+			} else {
+				options.model.notification = {
+					type: error,
+					message: err.message
+				};
+			}
+
+			res.status(400).render('base.hbs', options);
+		}
+	]
+}
+
+exports.confirm = {
+	get: async (req, res, next) => {
+		res.status(200).redirect('/login?'+notification('confirmation', 'Registration complete.'));
 	}
 }
 
-exports.web = {
+exports.login = {
+	get: (req, res) => {
+		res.status(200).render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/Login.hbs',
+				data: {
+					title: 'Login'
+				},
+				notification: req.notification
+			}
+		});
+	},
+	post: (req, res) => {
+		res.status(200)
+		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
+		.redirect('/account');
+	}
+}
+
+exports.logout = {
+	get: (req, res) => {
+		res.status(200)
+		.cookie('token', '', { expires: new Date(0), secure: true, signed: true, httpOnly: true})
+		.redirect('/login?'+notification('status', 'User logged out.'));
+	}
+}
+
+exports.recover = {
+	get: (req, res) => {
+		res.status(200).render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/ResetPassword.hbs',
+				data: {
+					title: 'Reset you password',
+					message: 'Please add your registered email to reset your password'
+				}
+			}
+		});
+	},
+	post: (req, res) => {
+		res.status(200)
+		.redirect('/login?'+notification('confirmation', 'A new password was sent to your email.'));
+	}
+}
+
+exports.account = {
 	get: (req, res) => {
 		res.status(200)
 		.render('base.hbs', {
@@ -146,11 +114,15 @@ exports.web = {
 					title: 'Account',
 					username: req.user.username,
 					email: req.user.email
-				}
+				},
+				notification: req.notification
 			}
 		});
-	},
-	form: (req, res) => {
+	}
+}
+
+exports.update = {
+	get: (req, res) => {
 		res.status(200)
 		.render('base.hbs', {
 			model: {
@@ -164,62 +136,46 @@ exports.web = {
 			}
 		});
 	},
-	post: (req, res) => {
-		res.status(200)
-		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
-		.render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Account.hbs',
-				data: {
-					title: 'Account',
-					message: 'Your details were updated.',
-					username: req.user.username,
-					email: req.user.email
-				}
-			}
-		});
-	},
-	delete: (req, res) => {
-		res.status(200).render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Register.hbs',
-				data: {
-					title: 'User registration',
-					confirm: 'Your account was removed.'
-				}
-			}
-		});
-	},
-	error: (err, req, res, next) => {
-		res.status(401).render('base.hbs', {
-			model: {
-				isDev: process.env.NODE_ENV === 'dev',
-				template: 'layouts/Login.hbs',
-				data: {
-					title: 'Login',
-					error: err
-				}
-			}
-		});
+	post: [
+		(req, res) => {
+			res.status(200)
+			.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
+			.redirect('/account?'+notification('status', 'Account updated'));
+		},
+		(err, req, res, next) => {
+			
+		}
+	]
+}
 
-		// res.status(400).render('base.hbs', {
-		// 	model: {
-		// 		isDev: process.env.NODE_ENV === 'dev',
-		// 		template: 'layouts/UpdateDetails.hbs',
-		// 		data: {
-		// 			title: 'Account',
-		// 			fields: {
-		// 				username: req.body.username,
-		// 				email: req.body.email
-		// 			},
-		// 			errors: errors.array().reduce((list, error) => {
-		// 				list[error.param] = error.msg;
-		// 				return list
-		// 			}, {})
-		// 		}
-		// 	}
-		// });
-	}
+exports.delete = {
+	post: [
+		(req, res) => {
+			res.status(200)
+			.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
+			.redirect('/register?'+notification('confirmation', 'Account deleted'));
+		},
+		(err, req, res, next) => {
+			
+		}
+	]
+};
+
+exports.error = (err, req, res, next) => {
+	console.log('#### USER ####')
+	console.log(err);
+	res.status(400)
+	.redirect('/login?'+notification('error', err.message || 'Internal error'));
+
+	// res.status(400).render('base.hbs', {
+	// 	model: {
+	// 		isDev: process.env.NODE_ENV === 'dev',
+	// 		template: 'layouts/ResetPassword.hbs',
+	// 		data: {
+	// 			title: 'Reset you password',
+	// 			message: 'Please add your registered email to reset your password',
+	// 			errors: err
+	// 		}
+	// 	}
+	// });
 }
