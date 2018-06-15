@@ -3,6 +3,38 @@ const { check, validationResult } = require('express-validator/check');
 const { sanitize } = require('express-validator/filter');
 const passport = require('passport');
 const { generateToken } = require('../utils/Token');
+const {notification} = require('../utils/QueryNotification');
+
+exports.confirm = [
+	sanitize('token').trim().escape(),
+
+	async (req, res, next) => {
+		let token = req.params.token;
+
+		try {
+			let payload = verify(token);
+
+			let model = await User.findById(payload._id);
+
+			if(model.active === false) {
+				model.active = true;
+				await model.save();
+
+				next();
+			} else {
+				next({
+					type: 'server',
+					message: 'Username '+req.body.username+' already active.'
+				});
+			}
+		} catch(err) {
+			next({
+				type: 'server',
+				message: 'server error'
+			});
+		}
+	}
+];
 
 exports.authenticate = [
 	sanitize('username').trim().escape(),
@@ -145,4 +177,85 @@ exports.reset = [
 			}, {}))
 		}
 	}
-]
+];
+
+exports.api = {
+	login: (req, res) => {
+		res.status(200).json({
+			success: true,
+			token: req.token
+		});
+	},
+	resetPassword: (req, res, next) => {
+		res.status(200).json({
+			success: true,
+			message: 'Password sent to email'
+		});
+	},
+	error: (err, req, res, next) => {
+		res.status(400).json({
+			success: false,
+			error: err
+		});
+	}
+}
+
+exports.view = {
+	emailConfirmation: async (req, res, next) => {
+		res.status(200).redirect('/login?'+notification('confirmation', 'Registration complete.'));
+	},
+	login: (req, res) => {
+		res.status(200).render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/Login.hbs',
+				data: {
+					title: 'Login'
+				},
+				notification: req.notification
+			}
+		});
+	},
+	logged: (req, res) => {
+		res.status(200)
+		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
+		.redirect('/account');
+	},
+	logout: (req, res) => {
+		res.status(200)
+		.cookie('token', '', { expires: new Date(0), secure: true, signed: true, httpOnly: true})
+		.redirect('/login?'+notification('status', 'User logged out.'));
+	},
+	resetPassword: (req, res) => {
+		res.status(200).render('base.hbs', {
+			model: {
+				isDev: process.env.NODE_ENV === 'dev',
+				template: 'layouts/ResetPassword.hbs',
+				data: {
+					title: 'Reset you password',
+					message: 'Please add your registered email to reset your password'
+				}
+			}
+		});
+	},
+	resetPasswordComplete: (req, res) => {
+		res.status(200)
+		.redirect('/login?'+notification('confirmation', 'A new password was sent to your email.'));
+	},
+	error: (err, req, res, next) => {
+		res.status(400)
+		.redirect('/login?'+notification('error', 'Internal error'));
+
+		// res.status(400).render('base.hbs', {
+		// 	model: {
+		// 		isDev: process.env.NODE_ENV === 'dev',
+		// 		template: 'layouts/ResetPassword.hbs',
+		// 		data: {
+		// 			title: 'Reset you password',
+		// 			message: 'Please add your registered email to reset your password',
+		// 			errors: err
+		// 		}
+		// 	}
+		// });
+	}
+}

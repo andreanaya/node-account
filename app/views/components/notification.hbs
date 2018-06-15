@@ -1,0 +1,11 @@
+{{#if_eq type 'error'}}
+<p style="color: red">
+{{else if_eq type 'confirmation'}}
+<p style="color: green">
+{{else if_eq type 'status'}}
+<p style="color: blue">
+{{else if_eq type 'alert'}}
+<p style="color: orange">
+{{/if_eq}}
+
+{{message}}</p>
