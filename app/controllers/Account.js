@@ -37,7 +37,9 @@ exports.create = {
 			if(err.type == 'validation') {
 				options.model.data.errors = err.errors;
 			} else if(err.type == 'server') {
-				options.model.data.errors = err.message;
+				options.model.data.errors = {
+					server: err.message
+				}
 			} else {
 				options.model.notification = {
 					type: error,
@@ -97,10 +99,43 @@ exports.recover = {
 			}
 		});
 	},
-	post: (req, res) => {
-		res.status(200)
-		.redirect('/login?'+notification('confirmation', 'A new password was sent to your email.'));
-	}
+	post: [
+		(req, res) => {
+			res.status(200)
+			.redirect('/login?'+notification('confirmation', 'A new password was sent to your email.'));
+		},
+		(err, req, res, next) => {
+			console.log(err)
+			let options = {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/ResetPassword.hbs',
+					data: {
+						title: 'Reset you password',
+						message: 'Please add your registered email to reset your password',
+						fields: {
+							email: req.body.email
+						}
+					}
+				}
+			};
+
+			if(err.type == 'validation') {
+				options.model.data.errors = err.errors;
+			} else if(err.type == 'server') {
+				options.model.data.errors = {
+					server: err.message
+				}
+			} else {
+				options.model.notification = {
+					type: error,
+					message: err.message
+				};
+			}
+
+			res.status(400).render('base.hbs', options);
+		}
+	]
 }
 
 exports.account = {
@@ -130,8 +165,10 @@ exports.update = {
 				template: 'layouts/UpdateDetails.hbs',
 				data: {
 					title: 'Account',
-					username: req.user.username,
-					email: req.user.email
+					fields: {
+						username: req.user.username,
+						email: req.user.email
+					}
 				}
 			}
 		});
@@ -143,27 +180,47 @@ exports.update = {
 			.redirect('/account?'+notification('status', 'Account updated'));
 		},
 		(err, req, res, next) => {
-			
+			var options = {
+				model: {
+					isDev: process.env.NODE_ENV === 'dev',
+					template: 'layouts/UpdateDetails.hbs',
+					data: {
+						title: 'Account',
+						fields: {
+							username: req.body.username,
+							email: req.body.email
+						}
+					}
+				}
+			}
+
+			if(err.type == 'validation') {
+				options.model.data.errors = err.errors;
+			} else if(err.type == 'server') {
+				options.model.data.errors = {
+					server: err.message
+				}
+			} else {
+				options.model.notification = {
+					type: error,
+					message: err.message
+				};
+			}
+
+			res.status(400).render('base.hbs', options);
 		}
 	]
 }
 
 exports.delete = {
-	post: [
-		(req, res) => {
-			res.status(200)
-			.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
-			.redirect('/register?'+notification('confirmation', 'Account deleted'));
-		},
-		(err, req, res, next) => {
-			
-		}
-	]
+	post: (req, res) => {
+		res.status(200)
+		.cookie('token', req.token, { signed: true, secure: true, httpOnly: true})
+		.redirect('/register?'+notification('confirmation', 'Account deleted'));
+	}
 };
 
 exports.error = (err, req, res, next) => {
-	console.log('#### USER ####')
-	console.log(err);
 	res.status(400)
 	.redirect('/login?'+notification('error', err.message || 'Internal error'));
 

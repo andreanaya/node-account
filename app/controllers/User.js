@@ -5,6 +5,10 @@ const User = require('../models/User');
 const { generateToken, verify } = require('../utils/Token');
 const Mail = require('../utils/Mail');
 
+console.log(generateToken({
+	email: 'andre.anaya@gmail.com'
+}))
+
 exports.authorize = [
 	jwt({
 		secret: process.env.TOKEN_SECRET,
@@ -99,7 +103,6 @@ exports.create = [
 			errors.passwordConfirmation = 'invalid';
 		}
 
-
 		if(Object.keys(errors).length === 0) {
 			req.body.username = username;
 			req.body.email = email;
@@ -171,22 +174,36 @@ exports.confirm = [
 
 			let model = await User.findById(payload._id);
 
-			if(model.active === false) {
-				model.active = true;
-				await model.save();
+			if(model) {
+				if(model.active === false) {
+					model.active = true;
+					await model.save();
 
-				next();
+					next();
+				} else {
+					next({
+						type: 'server',
+						message: 'User already active.'
+					});
+				}
 			} else {
 				next({
 					type: 'server',
-					message: 'Username '+req.body.username+' already active.'
+					message: 'User not found'
 				});
 			}
 		} catch(err) {
-			next({
-				type: 'server',
-				message: 'server error'
-			});
+			if(err.name && err.name === 'JsonWebTokenError') {
+				next({
+					type: 'authentication',
+					message: 'Invalid token'
+				});
+			} else {
+				next({
+					type: 'server',
+					message: 'Server error'
+				});
+			}
 		}
 	}
 ];
@@ -226,6 +243,27 @@ exports.login = [
 ];
 
 exports.recover = [
+	(req, res, next) => {
+		let errors = {};
+
+		let email = validator.trim(req.body.email || '');
+
+		if(!validator.isEmpty(email) && !validator.isEmail(email) ) {
+			errors.email = 'invalid'
+		}
+
+		if(Object.keys(errors).length === 0) {
+			req.body.email = email;
+
+			next();
+		} else {
+			next({
+				type: 'validation',
+				errors: errors
+			});
+		}
+	},
+
 	async (req, res, next) => {
 		try {
 			let model = await User.findOne({email: req.body.email});
