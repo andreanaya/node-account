@@ -293,7 +293,6 @@ exports.recover = [
 				})
 			}
 		} catch(error) {
-			console.log(error)
 			next({
 				type: 'server',
 				message: 'Email not found'
