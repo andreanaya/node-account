@@ -5,10 +5,6 @@ const User = require('../models/User');
 const { generateToken, verify } = require('../utils/Token');
 const Mail = require('../utils/Mail');
 
-console.log(generateToken({
-	email: 'andre.anaya@gmail.com'
-}))
-
 exports.authorize = [
 	jwt({
 		secret: process.env.TOKEN_SECRET,
@@ -24,49 +20,47 @@ exports.authorize = [
 		}
 	}),
 	(err, req, res, next) => {
-		if (err) {
-			if(err.name === 'UnauthorizedError') {
-				next({
-					type: 'authentication',
-					message: 'Invalid token'
-				});
-			}
+		if (err && err.name === 'UnauthorizedError') {
+			next({
+				type: 'authentication',
+				message: 'Invalid token'
+			});
 		} else {
-			if (!req.payload || !req.payload._id) {
-				next({
-					type: 'authentication',
-					message: 'Unauthorized access'
-				});
-			} else {
-				next();
-			}
+			next(err);
 		}
 	},
 	async (req, res, next) => {
-		try {
-			let user = await User.findById(req.payload._id);
-			
-			if(user) {
-				if(user.created <= req.payload.iat) {
-					req.user = user;
+		if (req.payload !== undefined && req.payload._id !== undefined) {
+			try {
+				let user = await User.findById(req.payload._id);
+				
+				if(user) {
+					if(user.created <= req.payload.iat) {
+						req.user = user;
 
-					next();
+						next();
+					} else {
+						next({
+							type: 'authentication',
+							message: 'Token revoked'
+						});
+					}
 				} else {
 					next({
-						type: 'authentication',
-						message: 'Token revoked'
+						type: 'server',
+						message: 'User not found'
 					});
 				}
-			} else {
+			} catch(error) {
 				next({
 					type: 'server',
-					message: 'User not found'
+					message: 'Server error'
 				});
 			}
-		} catch(error) {
+		} else {
 			next({
-				type: 'server',
-				message: 'Server error'
+				type: 'authentication',
+				message: 'Unauthorized access'
 			});
 		}
 	}

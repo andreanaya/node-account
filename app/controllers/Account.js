@@ -105,7 +105,6 @@ exports.recover = {
 			.redirect('/login?'+notification('confirmation', 'A new password was sent to your email.'));
 		},
 		(err, req, res, next) => {
-			console.log(err)
 			let options = {
 				model: {
 					isDev: process.env.NODE_ENV === 'dev',
@@ -223,16 +222,4 @@ exports.delete = {
 exports.error = (err, req, res, next) => {
 	res.status(400)
 	.redirect('/login?'+notification('error', err.message || 'Internal error'));
-
-	// res.status(400).render('base.hbs', {
-	// 	model: {
-	// 		isDev: process.env.NODE_ENV === 'dev',
-	// 		template: 'layouts/ResetPassword.hbs',
-	// 		data: {
-	// 			title: 'Reset you password',
-	// 			message: 'Please add your registered email to reset your password',
-	// 			errors: err
-	// 		}
-	// 	}
-	// });
 }

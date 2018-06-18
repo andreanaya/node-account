@@ -10,36 +10,37 @@ exports.close = async () => {
 	await mongoose.connection.close();
 }
 
-exports.tempUser = (active) => {
-	let username = 'tempuser'+Date.now();
-	let email = username+'@email.com';
-	let password = 'P4ssw0rd!';
-
+exports.tempUser = (model) => {
+	let username = model && model.username != undefined ? model.username : 'tempuser'+Date.now();
+	let email = model && model.email != undefined ? model.email : username+'@email.com';
+	let password = model && model.password != undefined ? model.password : 'P4ssw0rd!';
+	let active = model && model.active != undefined ? model.active : true;
+	
 	let user = new User({
 		username: username,
 		password: password,
 		email: email,
-		active: active != undefined ? active : true
+		active: active
 	});
 
 	return user.save();
 }
 
-class FakeResponse {
-	constructor() {
-		this.statusCode = undefined;
-		this.body = undefined;
-	}
+// class FakeResponse {
+// 	constructor() {
+// 		this.statusCode = undefined;
+// 		this.body = undefined;
+// 	}
 
-	status(code) {
-		this.statusCode = code;
-		return this;
-	}
+// 	status(code) {
+// 		this.statusCode = code;
+// 		return this;
+// 	}
 
-	json(json) {
-		this.body = json;
-		return this;
-	}
-}
+// 	json(json) {
+// 		this.body = json;
+// 		return this;
+// 	}
+// }
 
-exports.FakeResponse = FakeResponse;
+// exports.FakeResponse = FakeResponse;

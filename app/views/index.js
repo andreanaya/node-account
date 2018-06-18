@@ -1,8 +1,26 @@
 const fs = require('fs');
 const path = require('path');
-const chokidar = require('chokidar');
 const handlebars = require('handlebars');
 const HBSHelpers = require('../utils/HBSHelpers.js');
+
+const readFiles = (cwd, dir, ignore) => {
+	let files = [];
+
+	fs.readdirSync(dir).forEach(file => {
+		let filePath = dir+'/'+file;
+		if(fs.statSync(filePath).isDirectory()) {
+			readFiles(cwd, filePath, ignore);
+		} else if(file.indexOf('hbs') != -1) {
+			let path = filePath.substr(cwd.length+1);
+
+			if(!ignore || ignore.indexOf(path) == -1) {
+				handlebars.registerPartial(path, fs.readFileSync(filePath, 'utf8'));
+			}
+		}
+	});
+
+	return files;
+}
 
 module.exports = function (app) {
 	Object.keys(HBSHelpers).forEach(function(key) {
@@ -10,20 +28,8 @@ module.exports = function (app) {
 	});
 
 	let basedir = path.resolve('./app/views');
-	
-	chokidar.watch(basedir+'/**/**.hbs', {
-		ignored: /base\.hbs/,
-		cwd: './app/views'
-	})
-	.on('add', function(filePath, event) {
-		handlebars.registerPartial(filePath, fs.readFileSync(basedir+'/'+filePath, 'utf8'));
-	})
-	.on('change', function(filePath, event) {
-		handlebars.registerPartial(filePath, fs.readFileSync(basedir+'/'+filePath, 'utf8'));
-	})
-	.on('unlink', function(filePath, event) {
-		handlebars.unregisterPartial(filePath);
-	});
+
+	readFiles(basedir, basedir, ['base.hbs']);
 
 	let templates = {};
 
