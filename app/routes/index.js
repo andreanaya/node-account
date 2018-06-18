@@ -63,9 +63,5 @@ module.exports = function(app) {
 		res.status(404).redirect('/login?'+notification('alert', 'Page not found!'));
 	});
 
-	app.use((err, req, res, next) => {
-		console.log('########')
-		console.log(err);
-		res.status(400).redirect('/login?'+notification('error', 'Server error!'));
-	});
+	app.use(Account.error);
 };

@@ -26,21 +26,21 @@ exports.tempUser = (model) => {
 	return user.save();
 }
 
-// class FakeResponse {
-// 	constructor() {
-// 		this.statusCode = undefined;
-// 		this.body = undefined;
-// 	}
+class FakeResponse {
+	constructor() {
+		this.statusCode = undefined;
+		this.body = undefined;
+	}
 
-// 	status(code) {
-// 		this.statusCode = code;
-// 		return this;
-// 	}
+	status(code) {
+		this.statusCode = code;
+		return this;
+	}
 
-// 	json(json) {
-// 		this.body = json;
-// 		return this;
-// 	}
-// }
+	json(json) {
+		this.body = json;
+		return this;
+	}
+}
 
-// exports.FakeResponse = FakeResponse;
+exports.FakeResponse = FakeResponse;

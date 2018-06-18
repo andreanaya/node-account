@@ -133,7 +133,7 @@ module.exports = describe('API tests ', () => {
 	});
 
 	describe('Login tests', () => {
-		it('should fail username is invalid', async () => {
+		it('should fail username is missing', async () => {
 			let user = await tempUser({
 				username: 'testuser',
 				password: 'P4ssw0rd!'
@@ -141,6 +141,23 @@ module.exports = describe('API tests ', () => {
 
 			let res = await supertest.post("/api/login")
 			.send({
+				password: 'P4ssw0rd!'
+			}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.equals('authentication');
+			expect(res.body.error.message).to.equals('Invalid username or password');
+
+			await user.remove();
+		});
+		it('should fail username is invalid', async () => {
+			let user = await tempUser({
+				password: 'P4ssw0rd!'
+			});
+
+			let res = await supertest.post("/api/login")
+			.send({
+				username: 'user',
 				password: 'P4ssw0rd!'
 			}).expect(400);
 			
@@ -152,13 +169,12 @@ module.exports = describe('API tests ', () => {
 		});
 		it('should fail password is invalid', async () => {
 			let user = await tempUser({
-				username: 'testuser',
 				password: 'P4ssw0rd!'
 			});
 
 			let res = await supertest.post("/api/login")
 			.send({
-				username: 'testuser'
+				username: user.username
 			}).expect(400);
 			
 			expect(res.body.success).to.be.false;
@@ -169,20 +185,36 @@ module.exports = describe('API tests ', () => {
 		});
 		it('should fail email is not confirmed', async () => {
 			let user = await tempUser({
-				username: 'testuser',
 				password: 'P4ssw0rd!',
 				active: false
 			});
 
 			let res = await supertest.post("/api/login")
 			.send({
-				username: 'testuser',
+				username: user.username,
 				password: 'P4ssw0rd!'
 			}).expect(400);
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('authentication');
 			expect(res.body.error.message).to.equals('Email not confirmed');
+
+			await user.remove();
+		});
+		it('should fail if password is incorrect', async () => {
+			let user = await tempUser({
+				password: 'P4ssw0rd!'
+			});
+
+			let res = await supertest.post("/api/login")
+			.send({
+				username: user.username,
+				password: 'P4ssw@rd'
+			}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.equals('authentication');
+			expect(res.body.error.message).to.equals('Invalid username or password');
 
 			await user.remove();
 		});

@@ -14,6 +14,7 @@ module.exports = describe('Account views tests ', () => {
 		it('should pass if registration page exist', async () => {
 			let res = await supertest.get("/register").expect(200);
 		});
+
 		it('should fail if username, email and password are missing', async () => {
 			let res = await supertest.post("/register").expect(400);
 			
@@ -186,6 +187,9 @@ module.exports = describe('Account views tests ', () => {
 	});
 
 	describe('Login tests', () => {
+		it('should pass if login form exists', async () => {
+			let res = await supertest.get("/login").expect(200);
+		});
 		it('should fail username is invalid', async () => {
 			let user = await tempUser({
 				username: 'testuser',
@@ -250,6 +254,21 @@ module.exports = describe('Account views tests ', () => {
 
 			expect(cookies.token).to.exist;
 			expect(res.headers.location).to.be.equals('/account');
+
+			await user.remove();
+		});
+
+		it('should pass if logout', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
+			
+			let res = await supertest.get("/logout").set('Cookie', 'token=s:'+token).expect(302);
+
+			expect(res.header.location).to.be.equals('/login?'+notification('status', 'User logged out.'));
 
 			await user.remove();
 		});
