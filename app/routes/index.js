@@ -52,7 +52,7 @@ module.exports = function(app) {
 		.post(lowRateLimiter, User.login, API.login, API.error);
 
 	app.route('/api/recover')
-		.post(lowRateLimiter, User.recover, API.resetPassword, API.error);
+		.post(lowRateLimiter, User.recover, API.recover, API.error);
 
 	app.route('/api/account')
 		.get(User.authorize, API.account, API.error)

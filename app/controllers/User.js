@@ -242,8 +242,10 @@ exports.recover = [
 
 		let email = validator.trim(req.body.email || '');
 
-		if(!validator.isEmpty(email) && !validator.isEmail(email) ) {
-			errors.email = 'invalid'
+		if(validator.isEmpty(email)) {
+			errors.email = 'missing';
+		} else if(!validator.isEmail(email)) {
+			errors.email = 'invalid';
 		}
 
 		if(Object.keys(errors).length === 0) {

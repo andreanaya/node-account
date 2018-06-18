@@ -92,11 +92,11 @@ module.exports = describe('API tests ', () => {
 				passwordConfirmation: 'P4ssw0rd!'
 			}).expect(400);
 
-			await user.remove();
-
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.be.equal('server');
 			expect(res.body.error.message).to.be.equals('Username testuser already exist.');
+
+			await user.remove();
 		});
 		it('should fail if email is taken', async () => {
 			let user = await tempUser({email: 'test@email.com'});
@@ -109,11 +109,11 @@ module.exports = describe('API tests ', () => {
 				passwordConfirmation: 'P4ssw0rd!'
 			}).expect(400);
 
-			await user.remove();
-
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.be.equal('server');
 			expect(res.body.error.message).to.be.equals('Email test@email.com already exist.');
+
+			await user.remove();
 		});
 		it('should pass if all fields are valid', async () => {
 			let res = await supertest.post("/api/register")
@@ -123,12 +123,12 @@ module.exports = describe('API tests ', () => {
 				password: 'P4ssw0rd!',
 				passwordConfirmation: 'P4ssw0rd!'
 			}).expect(200);
-
-			let user = await User.findOne({username: 'testuser'});
-			await user.remove();
 			
 			expect(res.body.success).to.be.true;
 			expect(res.body.data).to.exist;
+
+			let user = await User.findOne({username: 'testuser'});
+			await user.remove();
 		});
 	});
 
@@ -143,12 +143,12 @@ module.exports = describe('API tests ', () => {
 			.send({
 				password: 'P4ssw0rd!'
 			}).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('authentication');
 			expect(res.body.error.message).to.equals('Invalid username or password');
+
+			await user.remove();
 		});
 		it('should fail password is invalid', async () => {
 			let user = await tempUser({
@@ -160,12 +160,12 @@ module.exports = describe('API tests ', () => {
 			.send({
 				username: 'testuser'
 			}).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('authentication');
 			expect(res.body.error.message).to.equals('Invalid username or password');
+
+			await user.remove();
 		});
 		it('should fail email is not confirmed', async () => {
 			let user = await tempUser({
@@ -179,12 +179,12 @@ module.exports = describe('API tests ', () => {
 				username: 'testuser',
 				password: 'P4ssw0rd!'
 			}).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('authentication');
 			expect(res.body.error.message).to.equals('Email not confirmed');
+
+			await user.remove();
 		});
 		it('should pass if login', async () => {
 			let user = await tempUser({password: 'P4ssw0rd!'});
@@ -194,11 +194,11 @@ module.exports = describe('API tests ', () => {
 				username: user.username,
 				password: 'P4ssw0rd!'
 			}).expect(200);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.true;
 			expect(res.body.token).to.exist;
+
+			await user.remove();
 		});
 	});
 
@@ -228,12 +228,12 @@ module.exports = describe('API tests ', () => {
 			});
 			
 			let res = await supertest.get("/api/account").set('Authorization', 'Bearer '+token).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('authentication');
 			expect(res.body.error.message).to.equals('Unauthorized access');
+
+			await user.remove();
 		});
 		
 		it('should fail if id invalid', async () => {
@@ -246,12 +246,12 @@ module.exports = describe('API tests ', () => {
 			});
 			
 			let res = await supertest.get("/api/account").set('Authorization', 'Bearer '+token).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('server');
 			expect(res.body.error.message).to.equals('Server error');
+
+			await user.remove();
 		});
 		
 		it('should fail if token id not found', async () => {
@@ -264,12 +264,12 @@ module.exports = describe('API tests ', () => {
 			});
 			
 			let res = await supertest.get("/api/account").set('Authorization', 'Bearer '+token).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('server');
 			expect(res.body.error.message).to.equals('User not found');
+
+			await user.remove();
 		});
 		
 		it('should fail if token revoked', async () => {
@@ -283,12 +283,94 @@ module.exports = describe('API tests ', () => {
 			});
 			
 			let res = await supertest.get("/api/account").set('Authorization', 'Bearer '+token).expect(400);
-
-			await user.remove();
 			
 			expect(res.body.success).to.be.false;
 			expect(res.body.error.type).to.equals('authentication');
 			expect(res.body.error.message).to.equals('Token revoked');
+
+			await user.remove();
+		});
+		
+		it('should pass if authenticated', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.get("/api/account").set('Authorization', 'Bearer '+token).expect(200);
+			
+			expect(res.body.success).to.be.true;
+			expect(res.body.data).to.include({
+				email: user.email,
+				username: user.username
+			});
+
+			await user.remove();
+		});
+	});
+
+	describe('Recover tests', () => {
+		it('should fail if email is missing', async () => {
+			let res = await supertest.post("/api/recover").expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.equals('validation');
+			expect(res.body.error.errors).to.deep.include({
+				email: 'missing'
+			});
+		});
+		
+		it('should fail if email is invalid', async () => {
+			let res = await supertest.post("/api/recover")
+			.send({email: 'email'}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.equals('validation');
+			expect(res.body.error.errors).to.deep.include({
+				email: 'invalid'
+			});
+		});
+		
+		it('should fail if email not found', async () => {
+			let res = await supertest.post("/api/recover")
+			.send({email: 'test@email.com'}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.equals('server');
+			expect(res.body.error.message).to.be.equals('Email not found');
+		});
+		
+		it('should fail if user not active', async () => {
+			let user = await tempUser({
+				email: 'test@email.com',
+				active: false
+			});
+
+			let res = await supertest.post("/api/recover")
+			.send({email: 'test@email.com'}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.equals('server');
+			expect(res.body.error.message).to.be.equals('User not active');
+
+			await user.remove();
+		});
+		
+		it('should pass if password reset', async () => {
+			let user = await tempUser({
+				email: 'test@email.com'
+			});
+
+			let res = await supertest.post("/api/recover")
+			.send({email: 'test@email.com'}).expect(200);
+			
+			expect(res.body.success).to.be.true;
+			expect(res.body.message).to.be.equals('Password sent to email');
+
+			await user.remove();
 		});
 	});
 });
