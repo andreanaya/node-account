@@ -48,7 +48,7 @@ exports.delete = (req, res) => {
 		success: true,
 		data: {
 			status: 'User deleted',
-			email: req.user.username
+			username: req.user.username
 		}
 	});
 }

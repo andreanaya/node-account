@@ -373,4 +373,181 @@ module.exports = describe('API tests ', () => {
 			await user.remove();
 		});
 	});
+
+	describe('Update tests', () => {
+		it('should fail if invalid username', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				username: 'username!'
+			}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.be.equals('validation');
+			expect(res.body.error.errors).to.deep.include({
+				username: 'invalid'
+			})
+
+			await user.remove();
+		});
+
+		it('should pass if username valid', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				username: 'newname'
+			}).expect(200);
+			
+			expect(res.body.success).to.be.true;
+			expect(res.body.data).to.deep.include({
+				username: 'newname'
+			})
+
+			await user.remove();
+		});
+		it('should fail if invalid email', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				email: 'mail!'
+			}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.be.equals('validation');
+			expect(res.body.error.errors).to.deep.include({
+				email: 'invalid'
+			})
+
+			await user.remove();
+		});
+
+		it('should pass if email valid', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				email: 'new@email.com'
+			}).expect(200);
+			
+			expect(res.body.success).to.be.true;
+			expect(res.body.data).to.deep.include({
+				email: 'new@email.com'
+			})
+
+			await user.remove();
+		});
+		it('should fail if invalid password', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				password: 'password'
+			}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.be.equals('validation');
+			expect(res.body.error.errors).to.deep.include({
+				password: 'invalid'
+			})
+
+			await user.remove();
+		});
+
+		it('should fail if invalid password confirmation', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				password: 'Passw0rd?',
+				passwordConfirmation: 'Passw0rd!'
+			}).expect(400);
+			
+			expect(res.body.success).to.be.false;
+			expect(res.body.error.type).to.be.equals('validation');
+			expect(res.body.error.errors).to.deep.include({
+				passwordConfirmation: 'invalid'
+			})
+
+			await user.remove();
+		});
+
+		it('should pass if password and confirmation valid', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
+			.send({
+				password: 'P4ssw@rd!',
+				passwordConfirmation: 'P4ssw@rd!',
+			})
+			
+			expect(res.body.success).to.be.true;
+			expect(res.body.token).to.exist;
+
+			await user.remove();
+		});
+	});
+
+	describe('Delete tests', () => {
+		it('should pass if account deleted', async () => {
+			let user = await tempUser();
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			});
+			
+			let res = await supertest.delete("/api/account").set('Authorization', 'Bearer '+token).expect(200);
+			
+			expect(res.body.success).to.be.true;
+			expect(res.body.data.status).to.be.equals('User deleted');
+
+			await user.remove();
+		});
+	});
 });

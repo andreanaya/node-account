@@ -22,17 +22,19 @@ const readFiles = (cwd, dir, ignore) => {
 	return files;
 }
 
-module.exports = function (app) {
-	Object.keys(HBSHelpers).forEach(function(key) {
-		handlebars.registerHelper(key, HBSHelpers[key]);
-	});
+Object.keys(HBSHelpers).forEach(function(key) {
+	handlebars.registerHelper(key, HBSHelpers[key]);
+});
 
-	let basedir = path.resolve('./app/views');
+let basedir = path.resolve('./app/views');
 
-	readFiles(basedir, basedir, ['base.hbs']);
+readFiles(basedir, basedir, ['base.hbs']);
 
-	let templates = {};
+let templates = {};
 
+exports.templates = templates;
+
+exports.init = function (app) {
 	app.engine('hbs', function (filePath, options, callback) {
 		if(templates[filePath] === undefined) {
 			templates[filePath] = handlebars.compile(fs.readFileSync(filePath, 'utf8'));

@@ -321,7 +321,7 @@ exports.update = [
 		if( !validator.isEmpty(password) && password !== passwordConfirmation ) {
 			errors.passwordConfirmation = 'invalid';
 		}
-
+		
 		if(Object.keys(errors).length === 0) {
 			req.body.username = username;
 			req.body.email = email;

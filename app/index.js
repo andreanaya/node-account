@@ -21,7 +21,7 @@ app.use(bodyParser.text());
 
 app.use(passport.initialize());
 
-require('./views')(app)
+require('./views').init(app);
 require('./routes')(app);
 
 module.exports = app;
