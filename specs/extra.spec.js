@@ -5,6 +5,7 @@ const supertest = require('supertest')(app);
 const signature = require('cookie-signature');
 const {FakeResponse} = require('./utils');
 const User = require('../app/models/User');
+const Account = require('../app/controllers/Account');
 const jwt = require('jsonwebtoken');
 const {generateToken} = require('../app/utils/Token');
 const {notification, notificationParser} = require('../app/utils/QueryNotification');
@@ -20,6 +21,15 @@ module.exports = describe('Extra modules tests ', () => {
 		
 		it('should pass if 404 page redirects to login', async () => {
 			let res = await supertest.get("/404-page").redirects(1).expect(200);
+		});
+
+		it('should pass if 400 page redirects to login', async () => {
+			let res = new FakeResponse();
+
+			Account.error({}, {}, res);
+
+			expect(res.statusCode).to.be.equals(302);
+			expect(res.headers.location).to.be.equals('/login?'+notification('error', 'Internal error'));
 		});
 	});
 

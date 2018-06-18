@@ -30,6 +30,7 @@ class FakeResponse {
 	constructor() {
 		this.statusCode = undefined;
 		this.body = undefined;
+		this.headers = {};
 	}
 
 	status(code) {
@@ -39,6 +40,12 @@ class FakeResponse {
 
 	json(json) {
 		this.body = json;
+		return this;
+	}
+
+	redirect(location) {
+		this.statusCode = 302;
+		this.headers.location = location;
 		return this;
 	}
 }
