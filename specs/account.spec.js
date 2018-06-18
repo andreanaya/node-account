@@ -143,27 +143,46 @@ module.exports = describe('Account views tests ', () => {
 			expect(res.headers.location).to.be.equals('/login?'+notification('authentication', 'Invalid token'));
 		});
 
-		it('should fail if token malformed', async () => {
+		it('should fail if user not found', async () => {
 			let token = generateToken({
 				_id: '5b1f13def178ac167cfb2ce5',
 				email: 'test@andreanaya.com'
 			});
 
 			let res = await supertest.get("/confirm/"+token).expect(302);
+
+			expect(res.headers.location).to.be.equals('/login?'+notification('server', 'User not found'));
 		});
 
-		// it('should return 200 if confirmed', async () => {
-		// 	let data = await User.findOne({email: 'test@andreanaya.com'});
-			
-		// 	let token = generateToken({
-		// 		_id: data._id,
-		// 		email: 'test@andreanaya.com'
-		// 	})
+		it('should fail user already confirmed', async () => {
+			let user = await tempUser();
 
-		// 	let res = await supertest.get("/confirm/"+token).expect(200);
+			let token = generateToken({
+				_id: user._id,
+				email: user.email
+			});
 
-		// 	expect(res.text).to.be.equals('Email confirmed');
-		// });
+			let res = await supertest.get("/confirm/"+token).expect(302);
+
+			expect(res.headers.location).to.be.equals('/login?'+notification('server', 'User already active.'));
+
+			await user.remove();
+		});
+
+		it('should pass if email confirmed', async () => {
+			let user = await tempUser({active: false});
+
+			let token = generateToken({
+				_id: user._id,
+				email: user.email
+			});
+
+			let res = await supertest.get("/confirm/"+token).expect(302);
+
+			expect(res.headers.location).to.be.equals('/login?'+notification('confirmation', 'Registration complete.'));
+
+			await user.remove();
+		});
 	});
 
 	describe('Login tests', () => {
@@ -212,10 +231,6 @@ module.exports = describe('Account views tests ', () => {
 
 			expect(res.headers.location).to.be.equals('/login?'+notification('authentication', 'Email not confirmed'))
 			
-			// expect(res.body.success).to.be.false;
-			// expect(res.body.error.type).to.equals('authentication');
-			// expect(res.body.error.message).to.equals('Email not confirmed');
-
 			await user.remove();
 		});
 
@@ -332,6 +347,16 @@ module.exports = describe('Account views tests ', () => {
 	});
 
 	describe('Recover tests', () => {
+		it('should pass if reset password form exist', async () => {
+			let res = await supertest.get("/recover").expect(200);
+			
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	email: 'missing'
+			// });
+		});
+		
 		it('should fail if email is missing', async () => {
 			let res = await supertest.post("/recover").expect(400);
 			
@@ -353,203 +378,232 @@ module.exports = describe('Account views tests ', () => {
 			// });
 		});
 		
-	// 	it('should fail if email not found', async () => {
-	// 		let res = await supertest.post("/api/recover")
-	// 		.send({email: 'test@email.com'}).expect(400);
+		it('should fail if email not found', async () => {
+			let res = await supertest.post("/recover")
+			.send({email: 'test@email.com'}).expect(400);
 			
-	// 		expect(res.body.success).to.be.false;
-	// 		expect(res.body.error.type).to.equals('server');
-	// 		expect(res.body.error.message).to.be.equals('Email not found');
-	// 	});
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.equals('server');
+			// expect(res.body.error.message).to.be.equals('Email not found');
+		});
 		
-	// 	it('should fail if user not active', async () => {
-	// 		let user = await tempUser({
-	// 			email: 'test@email.com',
-	// 			active: false
-	// 		});
+		it('should fail if user not active', async () => {
+			let user = await tempUser({
+				email: 'test@email.com',
+				active: false
+			});
 
-	// 		let res = await supertest.post("/api/recover")
-	// 		.send({email: 'test@email.com'}).expect(400);
+			let res = await supertest.post("/recover")
+			.send({email: 'test@email.com'}).expect(400);
 			
-	// 		expect(res.body.success).to.be.false;
-	// 		expect(res.body.error.type).to.equals('server');
-	// 		expect(res.body.error.message).to.be.equals('User not active');
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.equals('server');
+			// expect(res.body.error.message).to.be.equals('User not active');
 
-	// 		await user.remove();
-	// 	});
+			await user.remove();
+		});
 		
-	// 	it('should pass if password reset', async () => {
-	// 		let user = await tempUser({
-	// 			email: 'test@email.com'
-	// 		});
+		it('should pass if password reset', async () => {
+			let user = await tempUser({
+				email: 'test@email.com'
+			});
 
-	// 		let res = await supertest.post("/api/recover")
-	// 		.send({email: 'test@email.com'}).expect(200);
-			
-	// 		expect(res.body.success).to.be.true;
-	// 		expect(res.body.message).to.be.equals('Password sent to email');
+			let res = await supertest.post("/recover")
+			.send({email: 'test@email.com'}).expect(302);
 
-	// 		await user.remove();
-	// 	});
+			expect(res.headers.location).to.be.equals('/login?'+notification('confirmation', 'A new password was sent to your email.'));
+
+			// expect(res.body.success).to.be.true;
+			// expect(res.body.message).to.be.equals('Password sent to email');
+
+			await user.remove();
+		});
 	});
 
-	// describe('Update tests', () => {
-	// 	it('should fail if invalid username', async () => {
-	// 		let user = await tempUser();
+	describe('Update tests', () => {
+		it('should pass if update form exist', async () => {
+			let user = await tempUser();
 
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			username: 'username!'
-	// 		}).expect(400);
+			let res = await supertest.get("/update").set('Cookie', 'token=s:'+token).expect(200);
+
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.be.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	username: 'invalid'
+			// })
+
+			await user.remove();
+		});
+		it('should fail if invalid username', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		expect(res.body.success).to.be.false;
-	// 		expect(res.body.error.type).to.be.equals('validation');
-	// 		expect(res.body.error.errors).to.deep.include({
-	// 			username: 'invalid'
-	// 		})
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				username: 'user'
+			}).expect(400);
 
-	// 		await user.remove();
-	// 	});
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.be.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	username: 'invalid'
+			// })
 
-	// 	it('should pass if username valid', async () => {
-	// 		let user = await tempUser();
+			await user.remove();
+		});
 
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
+		it('should pass if username valid', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			username: 'newname'
-	// 		}).expect(200);
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				username: 'newname'
+			}).expect(302);
+
+			expect(res.headers.location).to.be.equals('/account?'+notification('status', 'Account updated'));
+
+			await user.remove();
+		});
+		it('should fail if invalid email', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		expect(res.body.success).to.be.true;
-	// 		expect(res.body.data).to.deep.include({
-	// 			username: 'newname'
-	// 		})
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				email: 'mail'
+			}).expect(400);
 
-	// 		await user.remove();
-	// 	});
-	// 	it('should fail if invalid email', async () => {
-	// 		let user = await tempUser();
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.be.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	email: 'invalid'
+			// })
 
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
+			await user.remove();
+		});
+
+		it('should pass if email valid', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			email: 'mail!'
-	// 		}).expect(400);
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				email: 'new@email.com'
+			}).expect(302);
+
+			expect(res.headers.location).to.be.equals('/account?'+notification('status', 'Account updated'));
+
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.be.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	email: 'invalid'
+			// })
+
+			await user.remove();
+		});
+		it('should fail if invalid password', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		expect(res.body.success).to.be.false;
-	// 		expect(res.body.error.type).to.be.equals('validation');
-	// 		expect(res.body.error.errors).to.deep.include({
-	// 			email: 'invalid'
-	// 		})
-
-	// 		await user.remove();
-	// 	});
-
-	// 	it('should pass if email valid', async () => {
-	// 		let user = await tempUser();
-
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				password: 'password'
+			}).expect(400);
 			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			email: 'new@email.com'
-	// 		}).expect(200);
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.be.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	password: 'invalid'
+			// })
+
+			await user.remove();
+		});
+
+		it('should fail if invalid password confirmation', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		expect(res.body.success).to.be.true;
-	// 		expect(res.body.data).to.deep.include({
-	// 			email: 'new@email.com'
-	// 		})
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				password: 'Passw0rd?',
+				passwordConfirmation: 'Passw0rd!'
+			}).expect(400);
 
-	// 		await user.remove();
-	// 	});
-	// 	it('should fail if invalid password', async () => {
-	// 		let user = await tempUser();
+			// expect(res.body.success).to.be.false;
+			// expect(res.body.error.type).to.be.equals('validation');
+			// expect(res.body.error.errors).to.deep.include({
+			// 	passwordConfirmation: 'invalid'
+			// })
 
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
+			await user.remove();
+		});
+
+		it('should pass if password and confirmation valid', async () => {
+			let user = await tempUser();
+
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			password: 'password'
-	// 		}).expect(400);
+			let res = await supertest.post("/update").set('Cookie', 'token=s:'+token)
+			.send({
+				password: 'P4ssw@rd!',
+				passwordConfirmation: 'P4ssw@rd!',
+			}).expect(302);
+
+			let cookies = res.headers['set-cookie'].pop().split('; ').reduce((cookies, cookie) => {
+				cookies[cookie.split('=')[0]] = cookie.split('=')[1];
+				return cookies;
+			}, {});
+
+			expect(cookies.token).to.exist;
+			expect(res.headers.location).to.be.equals('/account?'+notification('status', 'Account updated'));
 			
-	// 		expect(res.body.success).to.be.false;
-	// 		expect(res.body.error.type).to.be.equals('validation');
-	// 		expect(res.body.error.errors).to.deep.include({
-	// 			password: 'invalid'
-	// 		})
+			// expect(res.body.success).to.be.true;
+			// expect(res.body.token).to.exist;
 
-	// 		await user.remove();
-	// 	});
-
-	// 	it('should fail if invalid password confirmation', async () => {
-	// 		let user = await tempUser();
-
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
-			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			password: 'Passw0rd?',
-	// 			passwordConfirmation: 'Passw0rd!'
-	// 		}).expect(400);
-			
-	// 		expect(res.body.success).to.be.false;
-	// 		expect(res.body.error.type).to.be.equals('validation');
-	// 		expect(res.body.error.errors).to.deep.include({
-	// 			passwordConfirmation: 'invalid'
-	// 		})
-
-	// 		await user.remove();
-	// 	});
-
-	// 	it('should pass if password and confirmation valid', async () => {
-	// 		let user = await tempUser();
-
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
-			
-	// 		let res = await supertest.put("/api/account").set('Authorization', 'Bearer '+token)
-	// 		.send({
-	// 			password: 'P4ssw@rd!',
-	// 			passwordConfirmation: 'P4ssw@rd!',
-	// 		})
-			
-	// 		expect(res.body.success).to.be.true;
-	// 		expect(res.body.token).to.exist;
-
-	// 		await user.remove();
-	// 	});
-	// });
+			await user.remove();
+		});
+	});
 
 	// describe('Delete tests', () => {
 	// 	it('should pass if account deleted', async () => {
