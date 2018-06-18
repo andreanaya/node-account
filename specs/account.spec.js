@@ -605,22 +605,24 @@ module.exports = describe('Account views tests ', () => {
 		});
 	});
 
-	// describe('Delete tests', () => {
-	// 	it('should pass if account deleted', async () => {
-	// 		let user = await tempUser();
+	describe('Delete tests', () => {
+		it('should pass if account deleted', async () => {
+			let user = await tempUser();
 
-	// 		let token = generateToken({
-	// 			_id: user._id,
-	// 			email: user.email,
-	// 			username: user.username
-	// 		});
+			let token = signature.sign(generateToken({
+				_id: user._id,
+				email: user.email,
+				username: user.username
+			}), process.env.TOKEN_SECRET)
 			
-	// 		let res = await supertest.delete("/api/account").set('Authorization', 'Bearer '+token).expect(200);
-			
-	// 		expect(res.body.success).to.be.true;
-	// 		expect(res.body.data.status).to.be.equals('User deleted');
+			let res = await supertest.post("/delete").set('Cookie', 'token=s:'+token).expect(302)
 
-	// 		await user.remove();
-	// 	});
-	// });
+			expect(res.headers.location).to.be.equals('/register?'+notification('confirmation', 'Account deleted'));
+			
+			// expect(res.body.success).to.be.true;
+			// expect(res.body.data.status).to.be.equals('User deleted');
+
+			await user.remove();
+		});
+	});
 });
