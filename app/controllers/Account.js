@@ -42,7 +42,7 @@ exports.create = {
 				}
 			} else {
 				options.model.notification = {
-					type: error,
+					type: err.type,
 					message: err.message
 				};
 			}
@@ -221,5 +221,5 @@ exports.delete = {
 
 exports.error = (err, req, res, next) => {
 	res.status(400)
-	.redirect('/login?'+notification('error', err.message || 'Internal error'));
+	.redirect('/login?'+notification(err.type || 'error', err.message || 'Internal error'));
 }
