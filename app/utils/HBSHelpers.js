@@ -1,3 +1,5 @@
+const handlebars = require('handlebars');
+
 module.exports = {
 	if_eq: function(v1, v2, options) {
 		if(v1 === v2) {
@@ -51,9 +53,9 @@ module.exports = {
 
 	filter: function(data, params, type, options) {
 		let filter = true;
-
+		
 		if(params !== undefined) {
-			var keys = Object.keys(params);
+			let keys = Object.keys(params);
 
 			if(type === 'every') {
 				filter = keys.filter((key) => {
@@ -64,8 +66,10 @@ module.exports = {
 					return params[key].indexOf(data[key]) > -1;
 				}).length > 0;
 			}
-		}
 
+
+		}
+		
 		if(filter) {
 			return options.fn(this);
 		}
@@ -74,6 +78,8 @@ module.exports = {
 	},
 
 	sort: function(array, sort, descending, options) {
+		let accum = '';
+		
 		if(sort) {
 			array = array.sort(function(a, b) {
 				if(a[sort] > b[sort]) {
@@ -84,14 +90,13 @@ module.exports = {
 					return 0;
 				}
 			})
+
 		}
-		
-		var accum = '';
-		
+
 		array.forEach(function(item, index) {
 			options.data.index = index;
 			accum += options.fn(item);
-		});
+		});	
 
 		return accum;
 	},
@@ -107,15 +112,15 @@ module.exports = {
 		return accum;
 	},
 
-	json: function(json) {
+	json: function(json, removeQuotes) {
+		if(removeQuotes === true) {
+			return JSON.stringify(json).replace(/\"([^(\")"]+)\":/g,"$1:").replace(/"(true|false)"/igm, '$1');
+		}
+
 		return JSON.stringify(json);
 	},
 
-	object: function(object) {
-		return JSON.stringify(object).replace(/\"([^(\")"]+)\":/g,"$1:").replace(/"(true|false)"/igm, '$1');
-	},
-
-	raw: function(partialName) {
+	partial: function(partialName) {
 		return handlebars.partials[partialName];
 	},
 

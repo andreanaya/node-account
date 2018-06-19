@@ -1,5 +1,7 @@
 const chai = require('chai');
 const expect = chai.expect;
+const app = require('../app/index');
+const supertest = require("supertest")(app);
 const {FakeResponse} = require('./utils');
 const User = require('../app/controllers/User');
 const Account = require('../app/controllers/Account');

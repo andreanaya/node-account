@@ -6,6 +6,7 @@ describe('API tests ', () => {
 	require('./api.spec');
 	require('./account.spec');
 	require('./extra.spec');
+	require('./handlebars.spec');
 	// require('./user-registration.spec');
 	// require('./user-login.spec');
 	// require('./user-update.spec');
