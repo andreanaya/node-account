@@ -161,9 +161,9 @@ exports.create = [
 
 exports.confirm = [
 	async (req, res, next) => {
-		let token = req.params.token;
-
 		try {
+			let token = req.params.token;
+			
 			let payload = verify(token);
 
 			let model = await User.findById(payload._id);

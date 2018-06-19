@@ -31,6 +31,8 @@ class FakeResponse {
 		this.statusCode = undefined;
 		this.body = undefined;
 		this.headers = {};
+		this.template = undefined;
+		this.options = undefined;
 	}
 
 	status(code) {
@@ -46,6 +48,12 @@ class FakeResponse {
 	redirect(location) {
 		this.statusCode = 302;
 		this.headers.location = location;
+		return this;
+	}
+
+	render(template, options) {
+		this.template = template;
+		this.options = options;
 		return this;
 	}
 }

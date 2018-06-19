@@ -42,8 +42,8 @@ exports.create = {
 				}
 			} else {
 				options.model.notification = {
-					type: err.type,
-					message: err.message
+					type: 'server',
+					message: 'Server error'
 				};
 			}
 
@@ -127,8 +127,8 @@ exports.recover = {
 				}
 			} else {
 				options.model.notification = {
-					type: error,
-					message: err.message
+					type: 'server',
+					message: 'Server error'
 				};
 			}
 
@@ -201,8 +201,8 @@ exports.update = {
 				}
 			} else {
 				options.model.notification = {
-					type: error,
-					message: err.message
+					type: 'server',
+					message: 'Server error'
 				};
 			}
 
